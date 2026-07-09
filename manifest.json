@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Snippy - Fast & Easy Screenshot Tool",
+  "name": "Snippy",
   "version": "1.0.0",
   "description": "A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.",
   "permissions": [

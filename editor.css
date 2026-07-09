@@ -125,9 +125,7 @@ body.snippy-editor-body {
 
 /* Sidebars General */
 aside.left-toolbar, aside.right-properties {
-  width: 240px;
   background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
   padding: 24px 16px;
@@ -136,9 +134,42 @@ aside.left-toolbar, aside.right-properties {
   overflow-y: auto;
 }
 
+aside.left-toolbar {
+  width: 240px;
+  border-right: 1px solid var(--border-light);
+}
+
 aside.right-properties {
-  border-right: none;
+  width: 240px;
+  min-width: 240px;
+  max-width: 600px;
   border-left: 1px solid var(--border-light);
+}
+
+/* Sidebar Resize Handle */
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background-color: transparent;
+  transition: background-color 0.2s;
+  position: relative;
+  z-index: 100;
+  align-self: stretch;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+  background-color: var(--border-active);
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  cursor: col-resize;
 }
 
 .section-title {
@@ -169,6 +200,31 @@ aside.right-properties {
   gap: 8px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+/* AI Configuration Active Indicator Dot */
+.tool-btn .indicator-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  background-color: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--success);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tool-btn.has-creds .indicator-dot {
+  opacity: 1;
+}
+
+.tool-btn.has-creds.provider-vertex .indicator-dot {
+  background-color: #6366f1;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.8);
 }
 
 .tool-btn svg {
@@ -560,3 +616,306 @@ button {
   border-radius: 4px;
   caret-color: var(--accent-primary);
 }
+
+/* AI Lens Side Drawer & OCR Styles */
+.ai-sub-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.ai-panel-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.ai-key-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.text-input {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+.text-input:focus {
+  border-color: var(--border-active);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.select-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  padding-right: 36px;
+}
+
+.select-input option {
+  background-color: #1a1a1a;
+  color: var(--text-main);
+}
+
+.btn-full {
+  width: 100%;
+  height: 38px;
+}
+
+.ai-key-link {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: none;
+  text-align: center;
+  margin-top: -2px;
+  transition: color 0.2s ease;
+}
+
+.ai-key-link:hover {
+  color: #a5b4fc;
+}
+
+/* Active State Styles */
+.ai-key-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 4px;
+}
+
+.ai-status-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+  animation: pulse-green 1.5s infinite alternate;
+}
+
+.ai-status-text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a7f3d0;
+}
+
+.btn-small-link {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  background-color: rgba(255,255,255,0.05);
+  transition: all 0.2s ease;
+}
+
+.btn-small-link:hover {
+  color: var(--text-main);
+  background-color: rgba(255,255,255,0.1);
+}
+
+/* Preset Actions Grid */
+.ai-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.ai-action-btn {
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-action-btn:hover {
+  background-color: rgba(79, 70, 229, 0.08);
+  color: #a5b4fc;
+  border-color: rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
+}
+
+.ai-action-btn:active {
+  transform: translateY(0);
+}
+
+.ai-action-icon {
+  stroke: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.ai-action-btn:hover .ai-action-icon {
+  transform: scale(1.1);
+}
+
+.ai-action-btn span {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Prompt Input Bar */
+.ai-custom-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 6px;
+  transition: border-color 0.2s ease;
+}
+
+.ai-custom-prompt:focus-within {
+  border-color: var(--border-active);
+}
+
+.ai-textarea {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  resize: none;
+  height: 32px;
+  padding: 4px;
+  line-height: 1.4;
+}
+
+.ai-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: var(--accent-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-send-btn:hover {
+  background-color: var(--accent-secondary);
+  transform: scale(1.05);
+}
+
+.ai-send-btn:active {
+  transform: scale(0.98);
+}
+
+/* AI Output Response Box */
+.ai-output-wrapper {
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.output-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ai-output-content {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Inter', sans-serif;
+  scrollbar-width: thin;
+}
+
+/* Loading/Thinking Indicator */
+.ai-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ai-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-green {
+  from { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+  to { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); }
+}
+

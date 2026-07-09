@@ -131,9 +131,11 @@
     const w = Math.abs(currentX - startX);
     const h = Math.abs(currentY - startY);
 
+    const ratio = window.devicePixelRatio || 1;
+
     if (w > 0 && h > 0) {
       // Cut out: Draw the un-dimmed screenshot inside the selection
-      ctx.drawImage(bgImage, x, y, w, h, x, y, w, h);
+      ctx.drawImage(bgImage, x * ratio, y * ratio, w * ratio, h * ratio, x, y, w, h);
 
       // Draw dashed stroke
       ctx.strokeStyle = '#ffffff';

@@ -151,6 +151,17 @@
             </svg>
             <span class="tool-label">Text</span>
           </button>
+
+          <!-- AI Lens Tool (Magic Sparkle) -->
+          <button id="tool-ai-lens" class="tool-btn" data-tool="ai-lens" title="AI OCR & Insights">
+            <div class="indicator-dot"></div>
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              <path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5 5 3Z" fill="currentColor" stroke="none" />
+              <path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" fill="currentColor" stroke="none" />
+            </svg>
+            <span class="tool-label">AI Lens</span>
+          </button>
         </div>
       </div>
     </aside>
@@ -161,6 +172,9 @@
         <canvas id="editor-canvas"></canvas>
       </div>
     </section>
+    
+    <!-- Resize Handle -->
+    <div id="sidebar-resize-handle" class="resize-handle"></div>
 
     <!-- Right Sidebar (Properties Panel) -->
     <aside class="right-properties">
@@ -219,6 +233,140 @@
           <button class="font-size-btn active" data-size="24">24</button>
           <button class="font-size-btn" data-size="36">36</button>
           <button class="font-size-btn" data-size="48">48</button>
+        </div>
+      </div>
+
+      <!-- AI Lens Property Group (Hidden by default) -->
+      <div class="property-group hidden" id="prop-ai-lens">
+        <div class="section-title">AI Lens & OCR</div>
+        
+        <!-- Welcome / Locked state (Shown if NO Key, but setup is collapsed) -->
+        <div id="ai-locked-state" class="ai-sub-panel">
+          <p class="ai-panel-desc" style="margin-bottom: 16px;">Transform screenshots with instant AI text extraction, translation, code explanations, and table formatting.</p>
+          <button id="btn-unlock-ai" class="btn-primary btn-full">
+            <span>Configure AI Model</span>
+          </button>
+        </div>
+
+        <!-- API Key Entry Setup (Collapsible, hidden by default unless configuring) -->
+        <div id="ai-setup-container" class="ai-sub-panel hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 12px; font-weight: 600; color: var(--text-main);">AI Settings</span>
+            <button id="btn-close-setup" class="btn-small-link" style="font-size: 11px;">Cancel</button>
+          </div>
+          
+          <div class="ai-key-input-container">
+            <label for="ai-provider-select" class="field-label">Provider</label>
+            <select id="ai-provider-select" class="text-input select-input">
+              <option value="aistudio" selected>Google AI Studio</option>
+              <option value="vertex">GCP Vertex AI</option>
+            </select>
+          </div>
+
+          <div class="ai-key-input-container" id="container-api-key">
+            <label id="label-api-key" for="ai-key-input" class="field-label">API Key / Token</label>
+            <input type="password" id="ai-key-input" class="text-input" placeholder="Paste API Key...">
+          </div>
+
+          <div class="ai-key-input-container" id="container-model-id">
+            <label for="ai-model-input" class="field-label">Model ID</label>
+            <input type="text" id="ai-model-input" class="text-input" placeholder="e.g. gemini-2.5-flash" value="gemini-2.5-flash">
+          </div>
+
+          <div class="ai-key-input-container hidden" id="container-project-id">
+            <label for="ai-project-input" class="field-label">GCP Project ID</label>
+            <input type="text" id="ai-project-input" class="text-input" placeholder="e.g. my-gcp-project-123">
+          </div>
+
+          <div class="ai-key-input-container hidden" id="container-region">
+            <label for="ai-region-input" class="field-label">GCP Region</label>
+            <input type="text" id="ai-region-input" class="text-input" placeholder="e.g. us-central1" value="us-central1">
+          </div>
+          
+          <button id="btn-save-key" class="btn-primary btn-full">
+            <span>Save Configuration</span>
+          </button>
+          
+          <a id="ai-key-link" href="https://aistudio.google.com/" target="_blank" class="ai-key-link">Get a free API Key →</a>
+        </div>
+
+        <!-- AI Workbench Controls (Shown if Key EXISTS) -->
+        <div id="ai-active-container" class="ai-sub-panel hidden">
+          <div class="ai-key-header">
+            <span class="ai-status-indicator"></span>
+            <span class="ai-status-text">Gemini AI Active</span>
+            <button id="btn-reset-key" class="btn-small-link" title="Change API Key">Reset Key</button>
+          </div>
+          
+          <div class="ai-actions-grid">
+            <button class="ai-action-btn" data-action="ocr">
+              <svg class="ai-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7V4a2 2 0 0 1 2-2h3" />
+                <path d="M9 22H6a2 2 0 0 1-2-2v-3" />
+                <path d="M20 7V4a2 2 0 0 0-2-2h-3" />
+                <path d="M15 22h3a2 2 0 0 0 2-2v-3" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+                <line x1="8" y1="8" x2="16" y2="8" />
+                <line x1="8" y1="16" x2="16" y2="16" />
+              </svg>
+              <span>Read Text</span>
+            </button>
+            
+            <button class="ai-action-btn" data-action="explain">
+              <svg class="ai-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span>Explain</span>
+            </button>
+            
+            <button class="ai-action-btn" data-action="translate">
+              <svg class="ai-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 8 6 6" />
+                <path d="m4 14 6-6 2 3" />
+                <path d="M2 5h12" />
+                <path d="M7 2h1" />
+                <path d="m22 22-5-10-5 10" />
+                <path d="M14 18h6" />
+              </svg>
+              <span>Translate</span>
+            </button>
+            
+            <button class="ai-action-btn" data-action="table">
+              <svg class="ai-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3h18v18H3V3z" />
+                <path d="M3 9h18" />
+                <path d="M3 15h18" />
+                <path d="M9 3v18" />
+                <path d="M15 3v18" />
+              </svg>
+              <span>Format</span>
+            </button>
+          </div>
+          
+          <!-- Custom Prompt Box -->
+          <div class="ai-custom-prompt">
+            <textarea id="ai-prompt-input" class="ai-textarea" placeholder="Ask custom questions..."></textarea>
+            <button id="btn-ai-send" class="ai-send-btn" title="Send custom question">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- AI Output Card -->
+          <div class="ai-output-wrapper hidden" id="ai-output-card">
+            <div class="ai-output-header">
+              <span class="output-title">AI Response</span>
+              <button id="btn-ai-copy" class="btn-small-link" title="Copy AI Output">Copy</button>
+            </div>
+            <div class="ai-output-content" id="ai-output-text">
+              <!-- Text outputs dynamically here -->
+            </div>
+          </div>
+          
         </div>
       </div>
 

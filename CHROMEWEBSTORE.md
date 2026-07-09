@@ -1,11 +1,11 @@
-# Chrome Web Store Listing — Snippy - Fast & Easy Screenshot Tool
+# Chrome Web Store Listing — Snippy
 
 > Last Updated: 2026-07-09
 
 ## Store Listing
 
 **Extension Name**
-Snippy - Fast & Easy Screenshot Tool
+Snippy
 
 **Short Description**
 A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.
@@ -19,6 +19,7 @@ Key Features:
 - Modern Editing Canvas: The captured selection instantly opens in an elegant, glassmorphic editing tab.
 - Comprehensive Annotation Set: Mark up your crops with freehand pens, custom-thickness rectangles, high-contrast text layers, and directional arrows.
 - Dynamic Highlighting & Blurring: Apply neon yellow highlighters to accent elements, or instantly pixelate/blur sensitive credentials and private data.
+- AI-Powered Lens (Optional): Connect a personal Google Gemini API key to unlock state-of-the-art vision capabilities—including accurate text extraction (OCR), detailed code explanations, contextual translation, tabular data extraction, and freeform chat about your captures.
 - High-Performance Exports: Copy the finished result directly to your clipboard to paste in messaging apps, or download as a high-fidelity white-compensated JPEG image.
 
 How to Use Snippy:
