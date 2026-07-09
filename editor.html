@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snippy Image Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body class="snippy-editor-body">
+
+  <!-- Header -->
+  <header class="editor-header">
+    <div class="header-left">
+      <div class="logo">
+        <svg class="logo-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="24" height="24" rx="6" fill="url(#logo-grad)"/>
+          <path d="M7 9V6C7 5.44772 7.44772 5 8 6V6" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 8H8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M17 15V18C17 18.5523 16.5523 19 16 19H15" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M19 16H16" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="2.5" stroke="white" stroke-width="1.5"/>
+          <defs>
+            <linearGradient id="logo-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#4f46e5"/>
+              <stop offset="1" stop-color="#7c3aed"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="logo-text">Snippy</span>
+        <span class="logo-badge">Editor</span>
+      </div>
+      <div class="image-info">
+        <span id="image-dimensions" class="info-tag">0 × 0 px</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <!-- Undo / Clear Actions -->
+      <div class="action-group">
+        <button id="btn-undo" class="btn-icon" title="Undo (Ctrl+Z)" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7v6h6" />
+            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+          </svg>
+          <span>Undo</span>
+        </button>
+        <button id="btn-clear" class="btn-icon text-danger" title="Clear all annotations">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18" />
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+            <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
+          </svg>
+          <span>Clear</span>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Export Actions -->
+      <button id="btn-copy" class="btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+        <span>Copy Image</span>
+      </button>
+
+      <button id="btn-save" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <span>Download JPEG</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace Container -->
+  <main class="editor-workspace">
+    
+    <!-- Left Toolbar (Tools Selector) -->
+    <aside class="left-toolbar">
+      <div class="toolbar-section">
+        <div class="section-title">Tools</div>
+        <div class="tools-grid">
+          <!-- Select Tool -->
+          <button id="tool-select" class="tool-btn active" data-tool="select" title="Select / Move">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+              <path d="m13 13 6 6" />
+            </svg>
+            <span class="tool-label">Select</span>
+          </button>
+
+          <!-- Draw Tool (Pen) -->
+          <button id="tool-pen" class="tool-btn" data-tool="pen" title="Brush Draw">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <span class="tool-label">Pen</span>
+          </button>
+
+          <!-- Arrow Tool -->
+          <button id="tool-arrow" class="tool-btn" data-tool="arrow" title="Draw Arrow">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="19" x2="19" y2="5" />
+              <polyline points="12 5 19 5 19 12" />
+            </svg>
+            <span class="tool-label">Arrow</span>
+          </button>
+
+          <!-- Rectangle Tool -->
+          <button id="tool-rect" class="tool-btn" data-tool="rect" title="Draw Rectangle">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+            <span class="tool-label">Rect</span>
+          </button>
+
+          <!-- Highlighter Tool -->
+          <button id="tool-highlighter" class="tool-btn" data-tool="highlighter" title="Highlight">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            <span class="tool-label">Highlight</span>
+          </button>
+
+          <!-- Blur / Pixelate Tool -->
+          <button id="tool-blur" class="tool-btn" data-tool="blur" title="Blur / Pixelate sensitive info">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="6" height="6" rx="1" />
+              <rect x="15" y="3" width="6" height="6" rx="1" />
+              <rect x="3" y="15" width="6" height="6" rx="1" />
+              <rect x="15" y="15" width="6" height="6" rx="1" />
+              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" />
+            </svg>
+            <span class="tool-label">Blur</span>
+          </button>
+
+          <!-- Text Tool -->
+          <button id="tool-text" class="tool-btn" data-tool="text" title="Add Text">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 7 4 4 20 4 20 7" />
+              <line x1="9" y1="20" x2="15" y2="20" />
+              <line x1="12" y1="4" x2="12" y2="20" />
+            </svg>
+            <span class="tool-label">Text</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas Viewer Panel -->
+    <section class="canvas-viewer">
+      <div id="canvas-wrapper" class="canvas-container-wrapper">
+        <canvas id="editor-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Right Sidebar (Properties Panel) -->
+    <aside class="right-properties">
+      
+      <!-- Color Property (all tools except Blur) -->
+      <div class="property-group" id="prop-color">
+        <div class="section-title">Color</div>
+        <div class="color-palette">
+          <button class="color-swatch active" data-color="#ff3b30" style="background-color: #ff3b30;" title="Red"></button>
+          <button class="color-swatch" data-color="#ff9500" style="background-color: #ff9500;" title="Orange"></button>
+          <button class="color-swatch" data-color="#ffcc00" style="background-color: #ffcc00;" title="Yellow"></button>
+          <button class="color-swatch" data-color="#34c759" style="background-color: #34c759;" title="Green"></button>
+          <button class="color-swatch" data-color="#007aff" style="background-color: #007aff;" title="Blue"></button>
+          <button class="color-swatch" data-color="#af52de" style="background-color: #af52de;" title="Purple"></button>
+          <button class="color-swatch" data-color="#ffffff" style="background-color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2);" title="White"></button>
+          <button class="color-swatch" data-color="#000000" style="background-color: #000000;" title="Black"></button>
+        </div>
+      </div>
+
+      <!-- Stroke Width (Pen, Arrow, Rect) -->
+      <div class="property-group" id="prop-stroke">
+        <div class="section-title">Line Weight</div>
+        <div class="stroke-selector">
+          <button class="stroke-btn active" data-width="3">
+            <span class="stroke-line" style="height: 2px;"></span>
+            <span>Thin</span>
+          </button>
+          <button class="stroke-btn" data-width="6">
+            <span class="stroke-line" style="height: 5px;"></span>
+            <span>Medium</span>
+          </button>
+          <button class="stroke-btn" data-width="12">
+            <span class="stroke-line" style="height: 10px;"></span>
+            <span>Thick</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Fill Option (Rect) -->
+      <div class="property-group hidden" id="prop-fill">
+        <div class="section-title">Fill Style</div>
+        <div class="fill-toggle-container">
+          <label class="switch">
+            <input type="checkbox" id="fill-checkbox">
+            <span class="slider"></span>
+          </label>
+          <span class="fill-label">Fill Shape</span>
+        </div>
+      </div>
+
+      <!-- Text Size Property (Text tool only) -->
+      <div class="property-group hidden" id="prop-font">
+        <div class="section-title">Font Size</div>
+        <div class="font-selector">
+          <button class="font-size-btn" data-size="16">16</button>
+          <button class="font-size-btn active" data-size="24">24</button>
+          <button class="font-size-btn" data-size="36">36</button>
+          <button class="font-size-btn" data-size="48">48</button>
+        </div>
+      </div>
+
+      <!-- Help Guidelines -->
+      <div class="property-group help-card">
+        <div class="section-title">Keyboard Shortcuts</div>
+        <ul class="help-shortcuts">
+          <li><span class="key">Ctrl</span> + <span class="key">Z</span> Undo last edit</li>
+          <li><span class="key">Ctrl</span> + <span class="key">C</span> Copy to Clipboard</li>
+          <li><span class="key">Ctrl</span> + <span class="key">S</span> Download Image</li>
+          <li><span class="key">Esc</span> Deselect tool</li>
+        </ul>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Elegant Toast Notification -->
+  <div id="toast" class="toast-notification">
+    <span class="toast-message">Image copied to clipboard!</span>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>
