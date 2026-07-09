@@ -425,17 +425,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ta = document.createElement('textarea');
     ta.className = 'canvas-text-input';
     
-    // Position text area beautifully on top of wrapper
+    // Position text area beautifully on top of wrapper, matching canvas bounding rect
+    const canvasRect = canvas.getBoundingClientRect();
     const wrapperRect = canvasWrapper.getBoundingClientRect();
-    const relativeX = clientX - wrapperRect.left;
-    const relativeY = clientY - wrapperRect.top;
+
+    // Calculate click offset relative to the canvas
+    const clickXInCanvas = clientX - canvasRect.left;
+    const clickYInCanvas = clientY - canvasRect.top;
+
+    // Canvas offset relative to wrapper (taking into account padding/centering/borders)
+    const canvasLeftInWrapper = canvasRect.left - wrapperRect.left;
+    const canvasTopInWrapper = canvasRect.top - wrapperRect.top;
+
+    // Adjust position by subtracting 5px to offset the textarea's padding (4px) and border (1px)
+    // so that the typed text aligns exactly with the clicked point.
+    const relativeX = canvasLeftInWrapper + clickXInCanvas - 5;
+    const relativeY = canvasTopInWrapper + clickYInCanvas - 5;
 
     ta.style.left = `${relativeX}px`;
     ta.style.top = `${relativeY}px`;
     ta.style.color = activeColor;
     
-    // Match display size scale
-    const displayFontScale = activeFontSize * (wrapperRect.width / canvas.width);
+    // Match display size scale based on canvas bounding client rect
+    const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
     ta.style.fontSize = `${displayFontScale}px`;
     ta.style.height = `${displayFontScale * 1.5}px`;
 
@@ -585,8 +597,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Real-time update to active editing text display scale
       if (activeTextarea) {
-        const wrapperRect = canvasWrapper.getBoundingClientRect();
-        const displayFontScale = activeFontSize * (wrapperRect.width / canvas.width);
+        const canvasRect = canvas.getBoundingClientRect();
+        const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
         activeTextarea.element.style.fontSize = `${displayFontScale}px`;
       }
     });
@@ -643,7 +655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnCopy.addEventListener('click', () => {
     if (activeTextarea) commitActiveText();
     
-    canvas.toBlob((blob) => {
+    canvas.toBlob(async (blob) => {
       if (!blob) {
         showToast('Failed to copy. Draw a selection first!');
         return;
@@ -651,11 +663,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       try {
         const item = new ClipboardItem({ 'image/png': blob });
-        navigator.clipboard.write([item]);
+        await navigator.clipboard.write([item]);
         showToast('Annotated image copied to clipboard!');
       } catch (err) {
         console.error('Clipboard write failed:', err);
-        showToast('Deselect browser permissions blocked clipboard copy.');
+        showToast('Clipboard copy failed. Please check browser permissions.');
       }
     }, 'image/png');
   });

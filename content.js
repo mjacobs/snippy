@@ -26,6 +26,8 @@
   let ctx = null;
   let bgImage = null;
   let originalOverflow = '';
+  let cleanupTimeoutId = null;
+  let pendingContainerToRemove = null;
   
   let isDragging = false;
   let startX = 0;
@@ -278,17 +280,34 @@
     window.removeEventListener('mouseup', handleMouseUp);
     window.removeEventListener('keydown', handleKeyDown);
 
+    // If there is a pending fade-out, cancel it and remove the container immediately
+    if (cleanupTimeoutId) {
+      clearTimeout(cleanupTimeoutId);
+      cleanupTimeoutId = null;
+      if (pendingContainerToRemove && pendingContainerToRemove.parentNode) {
+        pendingContainerToRemove.parentNode.removeChild(pendingContainerToRemove);
+      }
+      pendingContainerToRemove = null;
+    }
+
     // Remove elements from DOM
-    if (overlayContainer && overlayContainer.parentNode) {
-      overlayContainer.classList.remove('active');
-      setTimeout(() => {
-        if (overlayContainer && overlayContainer.parentNode) {
-          overlayContainer.parentNode.removeChild(overlayContainer);
-          overlayContainer = null;
-          canvas = null;
-          ctx = null;
-          bgImage = null;
+    if (overlayContainer) {
+      pendingContainerToRemove = overlayContainer;
+      pendingContainerToRemove.classList.remove('active');
+      
+      // Null out current session globals immediately, so they cannot be closed over
+      // and mutated or deleted by an old timer when a new session starts.
+      overlayContainer = null;
+      canvas = null;
+      ctx = null;
+      bgImage = null;
+
+      cleanupTimeoutId = setTimeout(() => {
+        cleanupTimeoutId = null;
+        if (pendingContainerToRemove && pendingContainerToRemove.parentNode) {
+          pendingContainerToRemove.parentNode.removeChild(pendingContainerToRemove);
         }
+        pendingContainerToRemove = null;
       }, 200); // Wait for transition fade out
     }
   }
