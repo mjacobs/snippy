@@ -28,6 +28,7 @@
   let originalOverflow = '';
   let cleanupTimeoutId = null;
   let pendingContainerToRemove = null;
+  let currentSessionId = 0;
   
   let isDragging = false;
   let startX = 0;
@@ -39,17 +40,23 @@
     // If an overlay already exists, clean it up first
     cleanup();
 
+    // Increment session ID to identify this specific loading attempt
+    currentSessionId++;
+    const sessionId = currentSessionId;
+
     // Prevent body scrolling
     originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     // Load background image first
     bgImage = new Image();
-    bgImage.onload = () => {
+    const loadingImage = bgImage;
+    loadingImage.onload = () => {
+      if (sessionId !== currentSessionId) return;
       createOverlayElements();
       drawInitialState();
     };
-    bgImage.src = dataUrl;
+    loadingImage.src = dataUrl;
   }
 
   function createOverlayElements() {
@@ -267,6 +274,9 @@
   }
 
   function cleanup() {
+    // Invalidate any active or pending selection sessions
+    currentSessionId++;
+
     // Restore scrolling
     if (originalOverflow !== undefined) {
       document.body.style.overflow = originalOverflow;

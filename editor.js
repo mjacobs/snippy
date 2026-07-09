@@ -424,6 +424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Create standard textarea
     const ta = document.createElement('textarea');
     ta.className = 'canvas-text-input';
+    ta.style.color = activeColor;
     
     // Position text area beautifully on top of wrapper, matching canvas bounding rect
     const canvasRect = canvas.getBoundingClientRect();
@@ -437,21 +438,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const canvasLeftInWrapper = canvasRect.left - wrapperRect.left;
     const canvasTopInWrapper = canvasRect.top - wrapperRect.top;
 
-    // Adjust position by subtracting 5px to offset the textarea's padding (4px) and border (1px)
-    // so that the typed text aligns exactly with the clicked point.
-    const relativeX = canvasLeftInWrapper + clickXInCanvas - 5;
-    const relativeY = canvasTopInWrapper + clickYInCanvas - 5;
-
-    ta.style.left = `${relativeX}px`;
-    ta.style.top = `${relativeY}px`;
-    ta.style.color = activeColor;
-    
     // Match display size scale based on canvas bounding client rect
     const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
     ta.style.fontSize = `${displayFontScale}px`;
     ta.style.height = `${displayFontScale * 1.5}px`;
 
+    // Append to wrapper so that we can read its computed styles (padding/borders) from CSS
     canvasWrapper.appendChild(ta);
+
+    const computed = window.getComputedStyle(ta);
+    const paddingLeft = parseFloat(computed.paddingLeft) || 4;
+    const borderLeftWidth = parseFloat(computed.borderLeftWidth) || 1;
+    const paddingTop = parseFloat(computed.paddingTop) || 4;
+    const borderTopWidth = parseFloat(computed.borderTopWidth) || 1;
+
+    // Adjust position to offset the textarea's padding and border so that the typed text aligns exactly with the clicked point
+    const relativeX = canvasLeftInWrapper + clickXInCanvas - (paddingLeft + borderLeftWidth);
+    const relativeY = canvasTopInWrapper + clickYInCanvas - (paddingTop + borderTopWidth);
+
+    ta.style.left = `${relativeX}px`;
+    ta.style.top = `${relativeY}px`;
     ta.focus();
 
     activeTextarea = {
@@ -667,7 +673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Annotated image copied to clipboard!');
       } catch (err) {
         console.error('Clipboard write failed:', err);
-        showToast('Clipboard copy failed. Please check browser permissions.');
+        showToast('Clipboard copy failed. Try again or check browser permissions.');
       }
     }, 'image/png');
   });
