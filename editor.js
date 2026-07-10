@@ -446,11 +446,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Append to wrapper so that we can read its computed styles (padding/borders) from CSS
     canvasWrapper.appendChild(ta);
 
+    const parseStyle = (val, fallback) => {
+      const parsed = parseFloat(val);
+      return isNaN(parsed) ? fallback : parsed;
+    };
+
     const computed = window.getComputedStyle(ta);
-    const paddingLeft = parseFloat(computed.paddingLeft) || 4;
-    const borderLeftWidth = parseFloat(computed.borderLeftWidth) || 1;
-    const paddingTop = parseFloat(computed.paddingTop) || 4;
-    const borderTopWidth = parseFloat(computed.borderTopWidth) || 1;
+    const paddingLeft = parseStyle(computed.paddingLeft, 4);
+    const borderLeftWidth = parseStyle(computed.borderLeftWidth, 1);
+    const paddingTop = parseStyle(computed.paddingTop, 4);
+    const borderTopWidth = parseStyle(computed.borderTopWidth, 1);
 
     // Adjust position to offset the textarea's padding and border so that the typed text aligns exactly with the clicked point
     const relativeX = canvasLeftInWrapper + clickXInCanvas - (paddingLeft + borderLeftWidth);

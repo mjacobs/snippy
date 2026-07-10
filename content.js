@@ -56,6 +56,10 @@
       createOverlayElements();
       drawInitialState();
     };
+    loadingImage.onerror = () => {
+      if (sessionId !== currentSessionId) return;
+      cleanup();
+    };
     loadingImage.src = dataUrl;
   }
 
