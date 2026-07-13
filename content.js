@@ -235,6 +235,7 @@
 
   function handleKeyDown(e) {
     if (e.key === 'Escape') {
+      e.preventDefault();
       cleanup();
     }
   }
@@ -325,13 +326,5 @@
       }, 200); // Wait for transition fade out
     }
   }
-
-  // Self-announcement for background.js checking
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'ping') {
-      sendResponse({ status: 'pong' });
-      return true;
-    }
-  });
 
 })();
