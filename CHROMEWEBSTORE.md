@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Snippy
 
-> Last Updated: 2026-07-09
+> Last Updated: 2026-07-12
 
 ## Store Listing
 
@@ -30,7 +30,9 @@ How to Use Snippy:
 5. Click "Copy Image" to copy directly to your clipboard, or click "Download JPEG" to save the file locally.
 
 Privacy & Permissions:
-Snippy runs entirely locally. Your captures and annotations are stored securely inside your browser's private extension sandbox (chrome.storage) and are never sent off-device, compiled, or shared with third parties.
+Snippy's capture and editing run entirely on your device. Your screenshots and annotations live only in your browser's private extension storage (chrome.storage.local) and are never sent to Snippy's developer or any Snippy server.
+
+The optional AI Lens is the single exception, and only when you choose to use it: the moment you click an AI action (Read Text, Explain, Translate, Format, or a custom prompt), the current image is sent directly from your browser to Google's Gemini API — or to your own Google Cloud Vertex AI endpoint — using the API key you supply, so Google can analyze it. Snippy never proxies this through its own servers, and your API key never leaves your local browser storage. If you never configure AI Lens, Snippy makes no external network requests at all.
 
 **Category**
 Productivity
@@ -66,17 +68,22 @@ English
 
 ### Data Collection
 
-**Does the extension collect user data?** No
+**Does the developer collect user data?** No — Snippy's developer receives and stores nothing. Captures, annotations, and API keys stay in the user's local `chrome.storage.local`.
+
+**Does the extension transmit user data to a third party?** Yes, conditionally. When the user invokes the optional **AI Lens**, the current screenshot is sent from the user's browser directly to Google (Gemini API or the user's own Vertex AI endpoint), using the user's own API key. This is disclosed to the user in the listing and in `PRIVACY.md`.
+
+> **Store "Data Use" form guidance:** On the Chrome Web Store data-disclosure form, declare that the extension handles **"Website content"** (the screenshot image), that it is **transmitted** (to Google's AI API) only for the AI Lens feature at the user's request, and that it is **not** collected by the developer. Do not certify "does not transmit user data" — that would be inaccurate while AI Lens ships.
 
 ### Data Use Certification
 - [x] Data is NOT sold to third parties
-- [x] Data is NOT used for purposes unrelated to the extension's core functionality
-- [x] Data is NOT used for creditworthiness or lending purposes
+- [x] Data is NOT used or transferred for purposes unrelated to the extension's single purpose
+- [x] Data is NOT used or transferred to determine creditworthiness or for lending purposes
+- [x] The only third-party transmission is the AI Lens screenshot → Google, performed on-device with the user's own key, at the user's explicit request
 
 ## Privacy Policy
 
 **Privacy Policy URL**
-https://github.com/your-username/snippy/blob/main/PRIVACY.md
+https://github.com/mjacobs/snippy/blob/main/PRIVACY.md
 
 ## Distribution
 
@@ -87,16 +94,16 @@ https://github.com/your-username/snippy/blob/main/PRIVACY.md
 ## Developer Info
 
 **Publisher Name**
-Snippy Dev
+Matthew Jacobs
 
 **Contact Email**
-support@snippytool.dev
+m@m4tt.xyz
 
 **Support URL / Email**
-https://github.com/your-username/snippy/issues
+https://github.com/mjacobs/snippy/issues
 
 **Homepage URL**
-https://github.com/your-username/snippy
+https://github.com/mjacobs/snippy
 
 ## Version History
 
