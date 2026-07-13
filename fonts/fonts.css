@@ -1,0 +1,21 @@
+/* Snippy — self-hosted fonts (latin subset).
+   Replaces the remote Google Fonts dependency so the editor loads offline
+   and never sends a request to Google just to render its own UI. */
+
+/* Inter — variable weight axis (UI uses 400–700). One file covers all weights. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('inter-latin-var.woff2') format('woff2');
+}
+
+/* Outfit — 700 only (the "Snippy" logo wordmark). */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('outfit-latin-700.woff2') format('woff2');
+}

@@ -108,9 +108,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Update header info tag
     imgDimensions.textContent = `${bgImage.naturalWidth} × ${bgImage.naturalHeight} px`;
-    
+
     // Render initial view
     drawEverything();
+
+    // Canvas text is rasterized at draw time and won't reflow when a web font
+    // arrives later, so re-render once fonts are ready to guarantee text
+    // annotations use Inter instead of a fallback.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => drawEverything());
+    }
   }
 
   // Draw background image and all shapes
