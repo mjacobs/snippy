@@ -302,7 +302,12 @@ aside.right-properties {
   padding: 16px;
 }
 
-.property-group.hidden {
+/* Generic visibility utility. NOTE: must stay generic — the AI Lens panel
+   toggles `hidden` on .ai-sub-panel / .ai-key-input-container / .ai-output-wrapper
+   elements too, not just .property-group. Scoping this to .property-group (as it
+   once was) left those elements permanently visible, stacking the locked/setup/
+   active states on top of each other. */
+.hidden {
   display: none !important;
 }
 
