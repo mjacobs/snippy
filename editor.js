@@ -155,6 +155,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${fontWeightForFamily(family)} ${fontSize}px ${family}`;
   }
 
+  // Greedily wrap a single paragraph into lines that fit maxWidth (backing px)
+  // using the currently-set ctx.font. Words that individually exceed maxWidth
+  // are allowed to overflow rather than being split mid-word.
+  function wrapTextToWidth(text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (!current || ctx.measureText(candidate).width <= maxWidth) {
+        current = candidate;
+      } else {
+        lines.push(current);
+        current = word;
+      }
+    }
+    lines.push(current);
+    return lines;
+  }
+
   // Helper to draw a single shape
   function drawShape(shape) {
     ctx.save();
@@ -271,7 +292,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctx.font = fontString(shape.fontSize, family);
       ctx.textBaseline = 'top';
 
-      const lines = shape.text.split('\n');
+      // Split on manual newlines first, then word-wrap each paragraph to the
+      // box width if one was recorded (older shapes without width don't wrap).
+      const paragraphs = shape.text.split('\n');
+      const lines = [];
+      for (const para of paragraphs) {
+        if (shape.width) {
+          for (const wrapped of wrapTextToWidth(para, shape.width)) {
+            lines.push(wrapped);
+          }
+        } else {
+          lines.push(para);
+        }
+      }
+
       let textY = shape.y1;
 
       for (const line of lines) {
@@ -538,6 +572,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const relativeX = canvasLeftInWrapper + clickXInCanvas - (paddingLeft + borderLeftWidth);
     const relativeY = canvasTopInWrapper + clickYInCanvas - (paddingTop + borderTopWidth);
 
+    // Give the box a sensible default width so text wraps onto multiple lines;
+    // the user can drag the resize handle to widen/narrow it. Clamp so the
+    // default doesn't spill past the right edge of the canvas.
+    const availableWidth = Math.max(80, canvasRect.width - clickXInCanvas - 4);
+    const defaultWidth = Math.min(Math.max(160, displayFontScale * 8), availableWidth);
+    ta.style.width = `${defaultWidth}px`;
+
     ta.style.left = `${relativeX}px`;
     ta.style.top = `${relativeY}px`;
     ta.focus();
@@ -570,6 +611,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const value = activeTextarea.element.value.trim();
     if (value) {
+      // Record the box's content width in backing coords so drawShape can wrap
+      // to the same width the textarea showed. clientWidth includes padding but
+      // not the border, so subtract padding to get the true content box width.
+      const el = activeTextarea.element;
+      const computed = window.getComputedStyle(el);
+      const padL = parseFloat(computed.paddingLeft) || 0;
+      const padR = parseFloat(computed.paddingRight) || 0;
+      const contentWidthDisplay = el.clientWidth - padL - padR;
+      const canvasRect = canvas.getBoundingClientRect();
+      const backingWidth = contentWidthDisplay * (canvas.width / canvasRect.width);
+
       shapes.push({
         type: 'text',
         color: activeColor,
@@ -577,7 +629,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         fontFamily: activeFontFamily,
         text: value,
         x1: activeTextarea.backingX,
-        y1: activeTextarea.backingY
+        y1: activeTextarea.backingY,
+        width: backingWidth
       });
       clearedShapesBackup = null;
       updateUndoButton();
