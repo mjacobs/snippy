@@ -89,6 +89,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentShape = null;
   let activeTextarea = null;
 
+  // Select tool state
+  let selectedShape = null;   // Reference to the currently selected shape (or null)
+  let isDraggingShape = false;
+  let dragLastX = 0;          // Last pointer position (backing coords) during a drag
+  let dragLastY = 0;
+
   // 1. Load active screenshot from storage
   try {
     const data = await chrome.storage.local.get('activeScreenshot');
@@ -142,6 +148,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const shape of shapes) {
       drawShape(shape);
     }
+
+    // Draw the selection outline on top (Select tool only)
+    if (activeTool === 'select' && selectedShape && shapes.includes(selectedShape)) {
+      drawSelectionOutline(selectedShape);
+    }
+  }
+
+  // Dashed selection rectangle around the selected shape's bounding box
+  function drawSelectionOutline(shape) {
+    const b = getShapeBBox(shape);
+    const pad = 4;
+    ctx.save();
+    ctx.strokeStyle = '#007aff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(b.x1 - pad, b.y1 - pad, (b.x2 - b.x1) + pad * 2, (b.y2 - b.y1) + pad * 2);
+    ctx.restore();
   }
 
   // Inter/Outfit are bold display faces; serif/mono/cursive read better at
@@ -371,9 +394,118 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ==========================================
+  // Select Tool: Hit-testing, Bounding Boxes & Movement
+  // ==========================================
+
+  // Shortest distance from point (px,py) to segment (ax,ay)-(bx,by), backing coords
+  function distToSegment(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    if (dx === 0 && dy === 0) {
+      return Math.hypot(px - ax, py - ay);
+    }
+    let t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  // Normalized bounding box {x1,y1,x2,y2} for any shape (backing coords)
+  function getShapeBBox(shape) {
+    if (shape.type === 'text') {
+      // Measure per-line extents at the shape's own font, mirroring drawShape:
+      // manual newlines first, then word-wrap to the stored box width if any.
+      ctx.save();
+      ctx.font = fontString(shape.fontSize, shape.fontFamily || DEFAULT_FONT_FAMILY);
+      const lines = [];
+      for (const para of String(shape.text).split('\n')) {
+        if (shape.width) {
+          lines.push(...wrapTextToWidth(para, shape.width));
+        } else {
+          lines.push(para);
+        }
+      }
+      let maxWidth = 0;
+      for (const line of lines) {
+        const w = ctx.measureText(line).width;
+        if (w > maxWidth) maxWidth = w;
+      }
+      ctx.restore();
+      const height = shape.fontSize * 1.25 * lines.length; // textBaseline top
+      return { x1: shape.x1, y1: shape.y1, x2: shape.x1 + maxWidth, y2: shape.y1 + height };
+    }
+    if (shape.points && shape.points.length) {
+      // pen / highlighter: bbox spanning all points
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of shape.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { x1: minX, y1: minY, x2: maxX, y2: maxY };
+    }
+    // rect / ellipse / blur / arrow / any unknown bbox type: fall back to x1..x2,y1..y2
+    return {
+      x1: Math.min(shape.x1, shape.x2),
+      y1: Math.min(shape.y1, shape.y2),
+      x2: Math.max(shape.x1, shape.x2),
+      y2: Math.max(shape.y1, shape.y2)
+    };
+  }
+
+  // True if the point (backing coords) hits the shape
+  function hitTestShape(shape, x, y) {
+    const tol = 6;
+    if (shape.type === 'arrow') {
+      const w = shape.lineWidth || 3;
+      return distToSegment(x, y, shape.x1, shape.y1, shape.x2, shape.y2) <= w / 2 + tol;
+    }
+    if (shape.type === 'pen' || shape.type === 'highlighter') {
+      const w = shape.lineWidth || (shape.type === 'highlighter' ? 18 : 3);
+      const pts = shape.points || [];
+      for (let i = 1; i < pts.length; i++) {
+        if (distToSegment(x, y, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) <= w / 2 + tol) {
+          return true;
+        }
+      }
+      return false;
+    }
+    // bbox-based hit test (rect, ellipse, blur, text, unknown types)
+    const b = getShapeBBox(shape);
+    return x >= b.x1 - tol && x <= b.x2 + tol && y >= b.y1 - tol && y <= b.y2 + tol;
+  }
+
+  // Topmost shape at a point (iterate from end), or null
+  function getShapeAt(x, y) {
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      if (hitTestShape(shapes[i], x, y)) return shapes[i];
+    }
+    return null;
+  }
+
+  // Translate whichever coordinate fields the shape carries by (dx, dy)
+  function translateShape(shape, dx, dy) {
+    if (typeof shape.x1 === 'number') { shape.x1 += dx; shape.y1 += dy; }
+    if (typeof shape.x2 === 'number') { shape.x2 += dx; shape.y2 += dy; }
+    if (shape.points) {
+      for (const p of shape.points) { p.x += dx; p.y += dy; }
+    }
+  }
+
+  // Remove the selected shape (Delete/Backspace); Undo semantics unchanged
+  function deleteSelectedShape() {
+    if (!selectedShape) return;
+    const idx = shapes.indexOf(selectedShape);
+    if (idx !== -1) shapes.splice(idx, 1);
+    selectedShape = null;
+    updateUndoButton();
+    drawEverything();
+  }
+
+  // ==========================================
   // Mouse Event Handlers on Canvas
   // ==========================================
-  
+
   canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return; // Left click only
     if (!bgImage) return;
@@ -384,9 +516,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    if (activeTool === 'select' || activeTool === 'ai-lens') {
-      return; // Do nothing for select and ai-lens tools
+    if (activeTool === 'ai-lens') {
+      return; // AI Lens has no canvas drawing behavior
     }
+
+    if (activeTool === 'select') {
+      // Select the topmost shape under the cursor, or deselect on empty canvas.
+      const sc = getBackingCoords(e.clientX, e.clientY);
+      const hit = getShapeAt(sc.x, sc.y);
+      if (hit) {
+        selectedShape = hit;
+        isDraggingShape = true;
+        dragLastX = sc.x;
+        dragLastY = sc.y;
+      } else {
+        selectedShape = null;
+      }
+      drawEverything();
+      return;
+    }
+
+    // Any new drawing action clears the current selection.
+    selectedShape = null;
 
     const coords = getBackingCoords(e.clientX, e.clientY);
     startX = coords.x;
@@ -522,20 +673,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     drawEverything();
   });
 
+  // Select-tool drag-to-move (kept separate from the drawing path above)
+  window.addEventListener('mousemove', (e) => {
+    if (!isDraggingShape || !selectedShape) return;
+    const coords = getBackingCoords(e.clientX, e.clientY);
+    const dx = coords.x - dragLastX;
+    const dy = coords.y - dragLastY;
+    if (dx !== 0 || dy !== 0) {
+      translateShape(selectedShape, dx, dy);
+      dragLastX = coords.x;
+      dragLastY = coords.y;
+      drawEverything();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDraggingShape) isDraggingShape = false;
+  });
+
+  // Cursor feedback: 'move' when hovering a shape in Select mode
+  canvas.addEventListener('mousemove', (e) => {
+    if (activeTool !== 'select' || isDraggingShape) return;
+    const coords = getBackingCoords(e.clientX, e.clientY);
+    canvas.style.cursor = getShapeAt(coords.x, coords.y) ? 'move' : 'default';
+  });
+
+  // Double-click a text shape in Select mode to re-open it for editing
+  canvas.addEventListener('dblclick', (e) => {
+    if (activeTool !== 'select') return;
+    const coords = getBackingCoords(e.clientX, e.clientY);
+    const hit = getShapeAt(coords.x, coords.y);
+    if (hit && hit.type === 'text') {
+      const idx = shapes.indexOf(hit);
+      if (idx !== -1) shapes.splice(idx, 1);
+      selectedShape = null;
+      const client = getClientCoords(hit.x1, hit.y1);
+      createTextarea(client.x, client.y, hit.x1, hit.y1, hit, idx);
+      drawEverything();
+    }
+  });
+
   // ==========================================
   // In-place Text Editing Layer
   // ==========================================
 
-  function createTextarea(clientX, clientY, backingX, backingY) {
+  function createTextarea(clientX, clientY, backingX, backingY, sourceShape, sourceIndex) {
     if (activeTextarea) return;
+
+    // When re-editing an existing text shape, preserve its own color/font size.
+    const editColor = sourceShape ? sourceShape.color : activeColor;
+    const editFontSize = sourceShape ? sourceShape.fontSize : activeFontSize;
 
     // Create standard textarea
     const ta = document.createElement('textarea');
     ta.className = 'canvas-text-input';
-    ta.style.color = activeColor;
+    // When re-editing, preview the shape's own family; otherwise the active one.
+    const editFontFamily = sourceShape
+      ? (sourceShape.fontFamily || DEFAULT_FONT_FAMILY)
+      : activeFontFamily;
+
+    ta.style.color = editColor;
     // Preview the chosen family/weight so wrap points match the rendered shape.
-    ta.style.fontFamily = activeFontFamily;
-    ta.style.fontWeight = fontWeightForFamily(activeFontFamily);
+    ta.style.fontFamily = editFontFamily;
+    ta.style.fontWeight = fontWeightForFamily(editFontFamily);
+    if (sourceShape) ta.value = sourceShape.text;
 
     // Position text area beautifully on top of wrapper, matching canvas bounding rect
     const canvasRect = canvas.getBoundingClientRect();
@@ -550,7 +751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const canvasTopInWrapper = canvasRect.top - wrapperRect.top;
 
     // Match display size scale based on canvas bounding client rect
-    const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
+    const displayFontScale = editFontSize * (canvasRect.width / canvas.width);
     ta.style.fontSize = `${displayFontScale}px`;
     ta.style.height = `${displayFontScale * 1.5}px`;
 
@@ -576,7 +777,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // the user can drag the resize handle to widen/narrow it. Clamp so the
     // default doesn't spill past the right edge of the canvas.
     const availableWidth = Math.max(80, canvasRect.width - clickXInCanvas - 4);
-    const defaultWidth = Math.min(Math.max(160, displayFontScale * 8), availableWidth);
+    let defaultWidth = Math.min(Math.max(160, displayFontScale * 8), availableWidth);
+    // Re-edit: reopen at the shape's stored wrap width so lines break the same
+    if (sourceShape && sourceShape.width) {
+      defaultWidth = sourceShape.width * (canvasRect.width / canvas.width);
+    }
     ta.style.width = `${defaultWidth}px`;
 
     ta.style.left = `${relativeX}px`;
@@ -586,7 +791,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeTextarea = {
       element: ta,
       backingX: backingX,
-      backingY: backingY
+      backingY: backingY,
+      color: editColor,
+      fontSize: editFontSize,
+      source: sourceShape || null,
+      sourceIndex: (typeof sourceIndex === 'number') ? sourceIndex : null
     };
 
     // Auto-expand typing height
@@ -594,6 +803,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       ta.style.height = 'auto';
       ta.style.height = `${ta.scrollHeight}px`;
     });
+
+    // Fit pre-filled multi-line text to its content height
+    if (sourceShape) {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
 
     // Special shortcuts for committing or canceling text
     ta.addEventListener('keydown', (e) => {
@@ -610,6 +825,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!activeTextarea) return;
 
     const value = activeTextarea.element.value.trim();
+    const src = activeTextarea.source;
+
     if (value) {
       // Record the box's content width in backing coords so drawShape can wrap
       // to the same width the textarea showed. clientWidth includes padding but
@@ -622,17 +839,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       const canvasRect = canvas.getBoundingClientRect();
       const backingWidth = contentWidthDisplay * (canvas.width / canvasRect.width);
 
-      shapes.push({
-        type: 'text',
-        color: activeColor,
-        fontSize: activeFontSize,
-        fontFamily: activeFontFamily,
-        text: value,
-        x1: activeTextarea.backingX,
-        y1: activeTextarea.backingY,
-        width: backingWidth
-      });
+      let shape;
+      if (src) {
+        // Re-edit: preserve the original shape's extra properties (e.g.
+        // fontFamily) but refresh the wrap width from the (possibly resized)
+        // textarea.
+        shape = {
+          ...src,
+          text: value,
+          color: activeTextarea.color,
+          fontSize: activeTextarea.fontSize,
+          x1: activeTextarea.backingX,
+          y1: activeTextarea.backingY,
+          width: backingWidth
+        };
+      } else {
+        shape = {
+          type: 'text',
+          color: activeColor,
+          fontSize: activeFontSize,
+          fontFamily: activeFontFamily,
+          text: value,
+          x1: activeTextarea.backingX,
+          y1: activeTextarea.backingY,
+          width: backingWidth
+        };
+      }
+      // Re-inserting at the original index keeps z-order stable across a re-edit
+      if (src && typeof activeTextarea.sourceIndex === 'number') {
+        shapes.splice(activeTextarea.sourceIndex, 0, shape);
+      } else {
+        shapes.push(shape);
+      }
       clearedShapesBackup = null;
+      updateUndoButton();
+    } else if (src) {
+      // Text cleared during a re-edit: leave the original removed (deletion)
       updateUndoButton();
     }
 
@@ -641,6 +883,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function cancelActiveText() {
+    // Restore the original shape if we were re-editing one
+    if (activeTextarea && activeTextarea.source && typeof activeTextarea.sourceIndex === 'number') {
+      shapes.splice(activeTextarea.sourceIndex, 0, activeTextarea.source);
+      updateUndoButton();
+    }
     cleanupTextarea();
     drawEverything();
   }
@@ -667,9 +914,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       toolButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      
+
       activeTool = btn.dataset.tool;
+
+      // Switching tools clears the selection and any hover cursor
+      selectedShape = null;
+      isDraggingShape = false;
+      canvas.style.cursor = '';
+
       updatePropertyPanelsVisibility();
+      drawEverything();
     });
   });
 
@@ -1362,9 +1616,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       btnSave.click();
     } 
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Remove the selected shape (guarded above against textarea focus)
+      if (selectedShape) {
+        e.preventDefault();
+        deleteSelectedShape();
+      }
+    }
     else if (e.key === 'Escape') {
-      // Clear active tool to select mode
-      toolButtons[0].click(); // Click standard select tool
+      if (selectedShape) {
+        // First Escape just clears the selection
+        selectedShape = null;
+        drawEverything();
+      } else {
+        // Otherwise fall back to switching to the Select tool
+        toolButtons[0].click();
+      }
     }
   });
 
