@@ -103,9 +103,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   let dragTotalDX = 0;        // Accumulated drag delta, recorded for Undo on mouseup
   let dragTotalDY = 0;
 
+  // URL of the page the screenshot was captured from; embedded as image
+  // metadata (XMP / PNG iTXt) on export.
+  let sourceUrl = '';
+
   // 1. Load active screenshot from storage
   try {
-    const data = await chrome.storage.local.get('activeScreenshot');
+    const data = await chrome.storage.local.get(['activeScreenshot', 'sourceUrl']);
+    if (data && data.sourceUrl) {
+      sourceUrl = data.sourceUrl;
+    }
     if (data && data.activeScreenshot) {
       bgImage = new Image();
       bgImage.onload = () => {
@@ -1283,7 +1290,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       try {
-        const item = new ClipboardItem({ 'image/png': blob });
+        // Stamp the source page URL as a PNG iTXt chunk; fail open so a
+        // metadata problem never blocks the copy itself.
+        let pngBlob = blob;
+        if (sourceUrl) {
+          try {
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            pngBlob = new Blob([embedSourceInPng(bytes, sourceUrl)], { type: 'image/png' });
+          } catch (err) {
+            console.error('PNG metadata embed failed, copying without it:', err);
+          }
+        }
+        const item = new ClipboardItem({ 'image/png': pngBlob });
         await navigator.clipboard.write([item]);
         showToast('Annotated image copied to clipboard!');
       } catch (err) {
@@ -1292,6 +1310,125 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }, 'image/png'));
   });
+
+  // ==========================================
+  // Source-URL Metadata Embedding (JPEG XMP / PNG iTXt)
+  // ==========================================
+
+  function xmlEscape(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+
+  // Minimal XMP packet carrying the capture source URL (dc:source) and time.
+  // Readable with e.g. `exiftool -XMP:Source file.jpg`.
+  function buildXmpPacket(url) {
+    return '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>' +
+      '<x:xmpmeta xmlns:x="adobe:ns:meta/">' +
+      '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">' +
+      '<rdf:Description rdf:about=""' +
+      ' xmlns:dc="http://purl.org/dc/elements/1.1/"' +
+      ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">' +
+      `<dc:source>${xmlEscape(url)}</dc:source>` +
+      `<xmp:CreateDate>${new Date().toISOString()}</xmp:CreateDate>` +
+      '</rdf:Description></rdf:RDF></x:xmpmeta>' +
+      '<?xpacket end="w"?>';
+  }
+
+  function dataUrlToBytes(dataUrl) {
+    const bin = atob(dataUrl.split(',')[1]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function bytesToBase64(bytes) {
+    let bin = '';
+    const CHUNK = 0x8000; // String.fromCharCode has an argument-count limit
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+  }
+
+  // Insert an APP1/XMP segment into JPEG bytes, after SOI and any existing
+  // APPn segments. Returns the input unchanged if anything looks off.
+  function embedXmpInJpeg(bytes, url) {
+    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return bytes;
+
+    const payload = new TextEncoder().encode(
+      'http://ns.adobe.com/xap/1.0/\u0000' + buildXmpPacket(url)
+    );
+    const segLen = payload.length + 2; // includes the two length bytes
+    if (segLen > 0xFFFF) return bytes;
+
+    const seg = new Uint8Array(4 + payload.length);
+    seg[0] = 0xFF;
+    seg[1] = 0xE1;
+    seg[2] = (segLen >> 8) & 0xFF;
+    seg[3] = segLen & 0xFF;
+    seg.set(payload, 4);
+
+    // Skip past existing APPn segments (JFIF/ICC blocks canvas emits)
+    let pos = 2;
+    while (pos + 4 <= bytes.length && bytes[pos] === 0xFF &&
+           bytes[pos + 1] >= 0xE0 && bytes[pos + 1] <= 0xEF) {
+      pos += 2 + ((bytes[pos + 2] << 8) | bytes[pos + 3]);
+    }
+
+    const out = new Uint8Array(bytes.length + seg.length);
+    out.set(bytes.subarray(0, pos), 0);
+    out.set(seg, pos);
+    out.set(bytes.subarray(pos), pos + seg.length);
+    return out;
+  }
+
+  // CRC32 as used by PNG chunk checksums
+  const CRC_TABLE = (() => {
+    const t = new Int32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c;
+    }
+    return t;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+      c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  // Insert an iTXt chunk (keyword "Source", UTF-8) right after IHDR.
+  // Readable with e.g. `exiftool -PNG:Source file.png`.
+  function embedSourceInPng(bytes, url) {
+    const ihdrEnd = 8 + 4 + 4 + 13 + 4; // signature + IHDR chunk
+    if (bytes.length < ihdrEnd) return bytes;
+
+    const enc = new TextEncoder();
+    // iTXt layout: keyword \0 compressionFlag compressionMethod lang \0 translatedKeyword \0 text
+    const data = enc.encode('Source\u0000\u0000\u0000\u0000\u0000' + url);
+    const type = enc.encode('iTXt');
+
+    const chunk = new Uint8Array(4 + 4 + data.length + 4);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, data.length);
+    chunk.set(type, 4);
+    chunk.set(data, 8);
+    const crcInput = new Uint8Array(4 + data.length);
+    crcInput.set(type, 0);
+    crcInput.set(data, 4);
+    dv.setUint32(8 + data.length, crc32(crcInput));
+
+    const out = new Uint8Array(bytes.length + chunk.length);
+    out.set(bytes.subarray(0, ihdrEnd), 0);
+    out.set(chunk, ihdrEnd);
+    out.set(bytes.subarray(ihdrEnd), ihdrEnd + chunk.length);
+    return out;
+  }
 
   // Composite the annotated canvas over a solid white backdrop and return a
   // JPEG data URL. Callers wrap this in withSelectionSuppressed().
@@ -1309,7 +1446,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Composite edited canvas image
     downloadCtx.drawImage(canvas, 0, 0);
 
-    return downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
+    const jpegUrl = downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
+
+    // Stamp the capture's source page URL into the JPEG as XMP metadata.
+    // Fail open: a metadata problem must never block the export itself.
+    if (sourceUrl) {
+      try {
+        const stamped = embedXmpInJpeg(dataUrlToBytes(jpegUrl), sourceUrl);
+        return 'data:image/jpeg;base64,' + bytesToBase64(stamped);
+      } catch (err) {
+        console.error('XMP embed failed, exporting without metadata:', err);
+      }
+    }
+    return jpegUrl;
   }
 
   // Download JPEG format
@@ -1395,12 +1544,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Silent save: no picker dialog (saveAs: false overrides the browser's
     // "Ask where to save" setting), into a dedicated scratch subfolder.
-    // Chrome only allows downloads inside the Downloads directory, so
-    // Downloads/snippy-tmp is the closest thing to a /tmp drop zone.
+    // Chrome only allows downloads inside the Downloads directory and
+    // rejects hidden (dot-prefixed) components, so Downloads/snippy.tmp
+    // is the closest thing to a /tmp drop zone.
     chrome.downloads.download(
       {
         url: jpegUrl,
-        filename: `snippy-tmp/snippy_${Date.now()}.jpg`,
+        filename: `snippy.tmp/snippy_${Date.now()}.jpg`,
         saveAs: false,
         conflictAction: 'uniquify'
       },

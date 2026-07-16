@@ -60,10 +60,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'capture_completed') {
     (async () => {
       try {
-        // Store the cropped image in local storage
-        await chrome.storage.local.set({ 
+        // Store the cropped image in local storage, along with the page it
+        // came from so the editor can embed it as image metadata on export.
+        await chrome.storage.local.set({
           activeScreenshot: message.dataUrl,
-          screenshotTimestamp: Date.now()
+          screenshotTimestamp: Date.now(),
+          sourceUrl: (sender.tab && sender.tab.url) || ''
         });
         
         // Open the editor in a new tab
