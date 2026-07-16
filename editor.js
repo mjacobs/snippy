@@ -1393,8 +1393,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    // Silent save: no picker dialog (saveAs: false overrides the browser's
+    // "Ask where to save" setting), into a dedicated scratch subfolder.
+    // Chrome only allows downloads inside the Downloads directory, so
+    // Downloads/snippy-tmp is the closest thing to a /tmp drop zone.
     chrome.downloads.download(
-      { url: jpegUrl, filename: `snippy_${Date.now()}.jpg` },
+      {
+        url: jpegUrl,
+        filename: `snippy-tmp/snippy_${Date.now()}.jpg`,
+        saveAs: false,
+        conflictAction: 'uniquify'
+      },
       (downloadId) => {
         if (chrome.runtime && chrome.runtime.lastError) {
           console.error('Download failed:', chrome.runtime.lastError);
