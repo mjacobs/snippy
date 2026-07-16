@@ -546,6 +546,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentY = coords.y;
 
     if (activeTool === 'text') {
+      // Stop the default mousedown focus shift from blurring the textarea
+      // that createTextarea focuses.
+      e.preventDefault();
       createTextarea(e.clientX, e.clientY, coords.x, coords.y);
       return;
     }
