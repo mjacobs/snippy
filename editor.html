@@ -268,6 +268,20 @@
           <button class="font-size-btn" data-size="36">36</button>
           <button class="font-size-btn" data-size="48">48</button>
         </div>
+        <div class="font-size-custom">
+          <input type="number" id="font-size-input" class="font-size-input"
+                 min="8" max="200" step="1" value="24" aria-label="Custom font size">
+          <span class="font-size-unit">px</span>
+        </div>
+
+        <div class="section-title" style="margin-top: 16px;">Font Family</div>
+        <select id="font-family-select" class="font-family-select">
+          <option value="'Inter', -apple-system, sans-serif">Inter (bold)</option>
+          <option value="'Outfit', sans-serif">Outfit (bold)</option>
+          <option value="Georgia, 'Times New Roman', serif">Georgia (serif)</option>
+          <option value="Menlo, Consolas, monospace">Menlo (mono)</option>
+          <option value="'Comic Sans MS', 'Segoe Print', cursive">Cursive</option>
+        </select>
       </div>
 
       <!-- AI Lens Property Group (Hidden by default) -->

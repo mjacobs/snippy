@@ -57,7 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fillCheckbox = document.getElementById('fill-checkbox');
   const fillSwatches = document.querySelectorAll('.fill-swatch');
   const fontSizeButtons = document.querySelectorAll('.font-size-btn');
-  
+  const fontSizeInput = document.getElementById('font-size-input');
+  const fontFamilySelect = document.getElementById('font-family-select');
+
   // Toast
   const toast = document.getElementById('toast');
   const toastMessage = toast.querySelector('.toast-message');
@@ -74,6 +76,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeColor = '#ff3b30'; // Red default
   let activeLineWidth = 3; // Thin
   let activeFontSize = 24; // Medium
+  const DEFAULT_FONT_FAMILY = "'Inter', -apple-system, sans-serif";
+  let activeFontFamily = DEFAULT_FONT_FAMILY;
   let activeFill = false;
   let activeFillColor = null; // null = match stroke color
   
@@ -138,6 +142,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const shape of shapes) {
       drawShape(shape);
     }
+  }
+
+  // Inter/Outfit are bold display faces; serif/mono/cursive read better at
+  // normal weight, so pick the weight to match the family.
+  function fontWeightForFamily(family) {
+    return /Inter|Outfit/.test(family) ? 'bold' : 'normal';
+  }
+
+  // Build a canvas/CSS font shorthand for a family + size pair.
+  function fontString(fontSize, family) {
+    return `${fontWeightForFamily(family)} ${fontSize}px ${family}`;
   }
 
   // Helper to draw a single shape
@@ -251,13 +266,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } 
     else if (shape.type === 'text') {
+      const family = shape.fontFamily || DEFAULT_FONT_FAMILY;
       ctx.fillStyle = shape.color;
-      ctx.font = `bold ${shape.fontSize}px 'Inter', -apple-system, sans-serif`;
+      ctx.font = fontString(shape.fontSize, family);
       ctx.textBaseline = 'top';
-      
+
       const lines = shape.text.split('\n');
       let textY = shape.y1;
-      
+
       for (const line of lines) {
         // Drop shadow for readability
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -483,7 +499,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ta = document.createElement('textarea');
     ta.className = 'canvas-text-input';
     ta.style.color = activeColor;
-    
+    // Preview the chosen family/weight so wrap points match the rendered shape.
+    ta.style.fontFamily = activeFontFamily;
+    ta.style.fontWeight = fontWeightForFamily(activeFontFamily);
+
     // Position text area beautifully on top of wrapper, matching canvas bounding rect
     const canvasRect = canvas.getBoundingClientRect();
     const wrapperRect = canvasWrapper.getBoundingClientRect();
@@ -555,6 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         type: 'text',
         color: activeColor,
         fontSize: activeFontSize,
+        fontFamily: activeFontFamily,
         text: value,
         x1: activeTextarea.backingX,
         y1: activeTextarea.backingY
@@ -727,21 +747,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Font size options
+  const FONT_SIZE_MIN = 8;
+  const FONT_SIZE_MAX = 200;
+
+  // Live-rescale the active textarea to match the current activeFontSize.
+  function rescaleActiveTextarea() {
+    if (!activeTextarea) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
+    activeTextarea.element.style.fontSize = `${displayFontScale}px`;
+  }
+
+  // Highlight whichever quick-preset matches the current size (none if custom).
+  function syncFontSizePresets(size) {
+    fontSizeButtons.forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.size, 10) === size);
+    });
+  }
+
+  // Quick preset buttons: fill the numeric input and rescale live text.
   fontSizeButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      fontSizeButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
       activeFontSize = parseInt(btn.dataset.size, 10);
-
-      // Real-time update to active editing text display scale
-      if (activeTextarea) {
-        const canvasRect = canvas.getBoundingClientRect();
-        const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
-        activeTextarea.element.style.fontSize = `${displayFontScale}px`;
-      }
+      syncFontSizePresets(activeFontSize);
+      if (fontSizeInput) fontSizeInput.value = activeFontSize;
+      rescaleActiveTextarea();
     });
   });
+
+  // Numeric font-size input: typing a custom value deselects the presets
+  // (unless it happens to equal one) and drives activeFontSize live.
+  if (fontSizeInput) {
+    const applyFontSizeInput = (clampDisplay) => {
+      let size = parseInt(fontSizeInput.value, 10);
+      if (isNaN(size)) {
+        if (!clampDisplay) return; // mid-typing empty/invalid: wait
+        size = activeFontSize;
+      }
+      size = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
+      if (clampDisplay) fontSizeInput.value = size;
+      activeFontSize = size;
+      syncFontSizePresets(size);
+      rescaleActiveTextarea();
+    };
+
+    fontSizeInput.addEventListener('input', () => applyFontSizeInput(false));
+    fontSizeInput.addEventListener('change', () => applyFontSizeInput(true));
+  }
+
+  // Font family picker: updates state and previews on the active textarea.
+  if (fontFamilySelect) {
+    fontFamilySelect.addEventListener('change', () => {
+      activeFontFamily = fontFamilySelect.value;
+      if (activeTextarea) {
+        activeTextarea.element.style.fontFamily = activeFontFamily;
+        activeTextarea.element.style.fontWeight = fontWeightForFamily(activeFontFamily);
+      }
+    });
+  }
 
   // Toggle solid fills
   fillCheckbox.addEventListener('change', (e) => {
