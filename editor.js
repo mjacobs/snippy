@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnClear = document.getElementById('btn-clear');
   const btnCopy = document.getElementById('btn-copy');
   const btnSave = document.getElementById('btn-save');
+  const btnSavePath = document.getElementById('btn-save-path');
   
   // Tool buttons
   const toolButtons = document.querySelectorAll('.tool-btn');
@@ -1292,27 +1293,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 'image/png'));
   });
 
+  // Composite the annotated canvas over a solid white backdrop and return a
+  // JPEG data URL. Callers wrap this in withSelectionSuppressed().
+  function buildExportJpegUrl() {
+    const downloadCanvas = document.createElement('canvas');
+    downloadCanvas.width = canvas.width;
+    downloadCanvas.height = canvas.height;
+
+    const downloadCtx = downloadCanvas.getContext('2d');
+
+    // Fill pure white backdrop
+    downloadCtx.fillStyle = '#ffffff';
+    downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+
+    // Composite edited canvas image
+    downloadCtx.drawImage(canvas, 0, 0);
+
+    return downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
+  }
+
   // Download JPEG format
   btnSave.addEventListener('click', () => {
     if (activeTextarea) commitActiveText();
     if (!canvas.width || !canvas.height) return;
     withSelectionSuppressed(() => {
-      // Create an offscreen canvas to paint solid white backdrop under JPEG to preserve transparency clean
-      const downloadCanvas = document.createElement('canvas');
-      downloadCanvas.width = canvas.width;
-      downloadCanvas.height = canvas.height;
-
-      const downloadCtx = downloadCanvas.getContext('2d');
-
-      // Fill pure white backdrop
-      downloadCtx.fillStyle = '#ffffff';
-      downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-
-      // Composite edited canvas image
-      downloadCtx.drawImage(canvas, 0, 0);
-
       try {
-        const jpegUrl = downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
+        const jpegUrl = buildExportJpegUrl();
         const link = document.createElement('a');
         link.download = `snippy_${Date.now()}.jpg`;
         link.href = jpegUrl;
@@ -1323,6 +1329,81 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Failed to export JPEG.');
       }
     });
+  });
+
+  // Once the browser has decided the download's final location (instant for a
+  // default download dir, later if "Ask where to save" is on), copy the
+  // absolute path to the clipboard.
+  function copyDownloadPathWhenReady(downloadId) {
+    let done = false;
+    const finish = (path) => {
+      if (done) return; // onChanged and the initial search can race
+      done = true;
+      if (!path) {
+        showToast('Saved, but could not determine the file path.');
+        return;
+      }
+      navigator.clipboard.writeText(path)
+        .then(() => showToast('JPEG saved — file path copied to clipboard!'))
+        .catch((err) => {
+          console.error('Path copy failed:', err);
+          showToast(`Saved to ${path}, but the clipboard copy failed.`);
+        });
+    };
+
+    const onChanged = (delta) => {
+      if (delta.id !== downloadId || !delta.filename) return;
+      chrome.downloads.onChanged.removeListener(onChanged);
+      finish(delta.filename.current);
+    };
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    // The filename is often already known; check once and cancel the listener.
+    chrome.downloads.search({ id: downloadId }, (items) => {
+      const item = items && items[0];
+      if (item && item.filename) {
+        chrome.downloads.onChanged.removeListener(onChanged);
+        finish(item.filename);
+      }
+    });
+  }
+
+  // Save JPEG AND copy its absolute path — for pasting the file straight
+  // into a terminal (e.g. a Claude/Codex chat).
+  btnSavePath.addEventListener('click', () => {
+    if (activeTextarea) commitActiveText();
+    if (!canvas.width || !canvas.height) return;
+
+    if (!chrome.downloads) {
+      // Permission was added in manifest 1.0.x; an unreloaded extension won't have it yet.
+      showToast('Downloads permission unavailable — reload the extension.');
+      return;
+    }
+
+    let jpegUrl = null;
+    withSelectionSuppressed(() => {
+      try {
+        jpegUrl = buildExportJpegUrl();
+      } catch (err) {
+        console.error('JPEG export failed:', err);
+      }
+    });
+    if (!jpegUrl) {
+      showToast('Failed to export JPEG.');
+      return;
+    }
+
+    chrome.downloads.download(
+      { url: jpegUrl, filename: `snippy_${Date.now()}.jpg` },
+      (downloadId) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          console.error('Download failed:', chrome.runtime.lastError);
+          showToast('Failed to save JPEG.');
+          return;
+        }
+        copyDownloadPathWhenReady(downloadId);
+      }
+    );
   });
 
   // ==========================================

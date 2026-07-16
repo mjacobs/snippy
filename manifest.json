@@ -5,6 +5,7 @@
   "description": "A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.",
   "permissions": [
     "activeTab",
+    "downloads",
     "scripting",
     "storage"
   ],
