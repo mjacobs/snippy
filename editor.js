@@ -1853,13 +1853,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         // GCP OAuth access tokens always start with 'ya29.'
         // Standard API keys (AIza...) and Agent Builder keys (AQ...) are standard API keys
         const isOAuthToken = geminiApiKey.startsWith('ya29.');
-        
-        // Vertex AI endpoint using configurable modelId
+
+        // Vertex AI endpoint using configurable modelId. The 'global'
+        // location uses the bare aiplatform host — 'global-aiplatform...'
+        // is not a real endpoint; regional locations use a region prefix.
+        const vertexHost = geminiRegion === 'global'
+          ? 'aiplatform.googleapis.com'
+          : `${geminiRegion}-aiplatform.googleapis.com`;
+        url = `https://${vertexHost}/v1/projects/${geminiProjectId}/locations/${geminiRegion}/publishers/google/models/${geminiModelId}:generateContent`;
         if (isOAuthToken) {
-          url = `https://${geminiRegion}-aiplatform.googleapis.com/v1/projects/${geminiProjectId}/locations/${geminiRegion}/publishers/google/models/${geminiModelId}:generateContent`;
           headers['Authorization'] = `Bearer ${geminiApiKey}`;
         } else {
-          url = `https://${geminiRegion}-aiplatform.googleapis.com/v1/projects/${geminiProjectId}/locations/${geminiRegion}/publishers/google/models/${geminiModelId}:generateContent?key=${geminiApiKey}`;
+          url += `?key=${geminiApiKey}`;
         }
       }
 
@@ -2014,8 +2019,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedShape = null;
         drawEverything();
       } else {
-        // Otherwise fall back to switching to the Select tool
-        toolButtons[0].click();
+        // Otherwise fall back to switching to the Select tool (by id — its
+        // position in the grid is a layout choice, not a contract)
+        document.getElementById('tool-select').click();
       }
     }
   });

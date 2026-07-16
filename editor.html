@@ -91,13 +91,39 @@
       <div class="toolbar-section">
         <div class="section-title">Tools</div>
         <div class="tools-grid">
-          <!-- Select Tool -->
-          <button id="tool-select" class="tool-btn active" data-tool="select" title="Select / Move / Delete">
+          <!-- Arrow Tool -->
+          <button id="tool-arrow" class="tool-btn" data-tool="arrow" title="Draw Arrow">
             <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-              <path d="m13 13 6 6" />
+              <line x1="5" y1="19" x2="19" y2="5" />
+              <polyline points="12 5 19 5 19 12" />
             </svg>
-            <span class="tool-label">Select</span>
+            <span class="tool-label">Arrow</span>
+          </button>
+
+          <!-- Text Tool -->
+          <button id="tool-text" class="tool-btn" data-tool="text" title="Add Text">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 7 4 4 20 4 20 7" />
+              <line x1="9" y1="20" x2="15" y2="20" />
+              <line x1="12" y1="4" x2="12" y2="20" />
+            </svg>
+            <span class="tool-label">Text</span>
+          </button>
+
+          <!-- Ellipse Tool -->
+          <button id="tool-ellipse" class="tool-btn" data-tool="ellipse" title="Draw Ellipse">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="12" rx="9" ry="7" />
+            </svg>
+            <span class="tool-label">Ellipse</span>
+          </button>
+
+          <!-- Rectangle Tool -->
+          <button id="tool-rect" class="tool-btn" data-tool="rect" title="Draw Rectangle">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+            <span class="tool-label">Rect</span>
           </button>
 
           <!-- Draw Tool (Pen) -->
@@ -109,37 +135,21 @@
             <span class="tool-label">Pen</span>
           </button>
 
-          <!-- Arrow Tool -->
-          <button id="tool-arrow" class="tool-btn" data-tool="arrow" title="Draw Arrow">
-            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="19" x2="19" y2="5" />
-              <polyline points="12 5 19 5 19 12" />
-            </svg>
-            <span class="tool-label">Arrow</span>
-          </button>
-
-          <!-- Rectangle Tool -->
-          <button id="tool-rect" class="tool-btn" data-tool="rect" title="Draw Rectangle">
-            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-            </svg>
-            <span class="tool-label">Rect</span>
-          </button>
-
-          <!-- Ellipse Tool -->
-          <button id="tool-ellipse" class="tool-btn" data-tool="ellipse" title="Draw Ellipse">
-            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <ellipse cx="12" cy="12" rx="9" ry="7" />
-            </svg>
-            <span class="tool-label">Ellipse</span>
-          </button>
-
           <!-- Highlighter Tool -->
           <button id="tool-highlighter" class="tool-btn" data-tool="highlighter" title="Highlight">
             <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
               <line x1="6" y1="18" x2="18" y2="6" stroke-width="7" opacity="0.55" />
             </svg>
             <span class="tool-label">Highlight</span>
+          </button>
+
+          <!-- Select Tool -->
+          <button id="tool-select" class="tool-btn active" data-tool="select" title="Select / Move / Delete">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+              <path d="m13 13 6 6" />
+            </svg>
+            <span class="tool-label">Select</span>
           </button>
 
           <!-- Blur / Pixelate Tool -->
@@ -153,19 +163,11 @@
             </svg>
             <span class="tool-label">Blur</span>
           </button>
+        </div>
+      </div>
 
-          <!-- Text Tool -->
-          <button id="tool-text" class="tool-btn" data-tool="text" title="Add Text">
-            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="4 7 4 4 20 4 20 7" />
-              <line x1="9" y1="20" x2="15" y2="20" />
-              <line x1="12" y1="4" x2="12" y2="20" />
-            </svg>
-            <span class="tool-label">Text</span>
-          </button>
-
-          <!-- AI Lens Tool (Magic Sparkle) -->
-          <button id="tool-ai-lens" class="tool-btn" data-tool="ai-lens" title="AI OCR & Insights">
+      <!-- AI Lens: pinned bar at the bottom of the toolbar -->
+      <button id="tool-ai-lens" class="tool-btn ai-lens-bar" data-tool="ai-lens" title="AI OCR & Insights">
             <div class="indicator-dot"></div>
             <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
@@ -174,8 +176,6 @@
             </svg>
             <span class="tool-label">AI Lens</span>
           </button>
-        </div>
-      </div>
     </aside>
 
     <!-- Canvas Viewer Panel -->

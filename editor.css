@@ -203,6 +203,19 @@ aside.right-properties {
   position: relative;
 }
 
+/* AI Lens: full-width bar pinned to the bottom of the left toolbar.
+   margin-top:auto pushes it to the bottom edge; when the window gets short
+   it stops against the tools grid and the sidebar scrolls/clips instead of
+   the bar floating over the buttons. */
+.ai-lens-bar {
+  margin-top: auto;
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 10px;
+  flex-shrink: 0;
+}
+
 /* AI Configuration Active Indicator Dot */
 .tool-btn .indicator-dot {
   position: absolute;
