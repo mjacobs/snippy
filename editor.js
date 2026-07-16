@@ -107,11 +107,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   // metadata (XMP / PNG iTXt) on export.
   let sourceUrl = '';
 
+  // Provenance metadata must not leak secrets when a screenshot is shared:
+  // keep only http(s) URLs, drop credentials and fragments, and redact query
+  // parameters whose names look sensitive (tokens, session ids, signatures).
+  function sanitizeSourceUrl(raw) {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+      u.username = '';
+      u.password = '';
+      u.hash = '';
+      const SENSITIVE = /token|secret|key|auth|code|session|sig|passw|credential|bearer/i;
+      for (const k of [...u.searchParams.keys()]) {
+        if (SENSITIVE.test(k)) u.searchParams.set(k, 'REDACTED');
+      }
+      return u.toString();
+    } catch (err) {
+      return '';
+    }
+  }
+
   // 1. Load active screenshot from storage
   try {
     const data = await chrome.storage.local.get(['activeScreenshot', 'sourceUrl']);
     if (data && data.sourceUrl) {
-      sourceUrl = data.sourceUrl;
+      sourceUrl = sanitizeSourceUrl(data.sourceUrl);
     }
     if (data && data.activeScreenshot) {
       bgImage = new Image();
@@ -1291,17 +1311,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       try {
         // Stamp the source page URL as a PNG iTXt chunk; fail open so a
-        // metadata problem never blocks the copy itself.
-        let pngBlob = blob;
-        if (sourceUrl) {
+        // metadata problem never blocks the copy itself. The ClipboardItem
+        // is constructed synchronously with a Promise payload so the write
+        // stays within the click's user-activation window.
+        const pngPromise = (async () => {
+          if (!sourceUrl) return blob;
           try {
             const bytes = new Uint8Array(await blob.arrayBuffer());
-            pngBlob = new Blob([embedSourceInPng(bytes, sourceUrl)], { type: 'image/png' });
+            return new Blob([embedSourceInPng(bytes, sourceUrl)], { type: 'image/png' });
           } catch (err) {
             console.error('PNG metadata embed failed, copying without it:', err);
+            return blob;
           }
-        }
-        const item = new ClipboardItem({ 'image/png': pngBlob });
+        })();
+        const item = new ClipboardItem({ 'image/png': pngPromise });
         await navigator.clipboard.write([item]);
         showToast('Annotated image copied to clipboard!');
       } catch (err) {
@@ -1369,11 +1392,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     seg[3] = segLen & 0xFF;
     seg.set(payload, 4);
 
-    // Skip past existing APPn segments (JFIF/ICC blocks canvas emits)
+    // Skip past existing APPn segments (JFIF/ICC blocks canvas emits),
+    // bailing out on malformed segment lengths rather than reading past
+    // the end of the buffer.
     let pos = 2;
     while (pos + 4 <= bytes.length && bytes[pos] === 0xFF &&
            bytes[pos + 1] >= 0xE0 && bytes[pos + 1] <= 0xEF) {
-      pos += 2 + ((bytes[pos + 2] << 8) | bytes[pos + 3]);
+      const len = (bytes[pos + 2] << 8) | bytes[pos + 3];
+      if (len < 2 || pos + 2 + len > bytes.length) return bytes;
+      pos += 2 + len;
     }
 
     const out = new Uint8Array(bytes.length + seg.length);
@@ -1501,9 +1528,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const onChanged = (delta) => {
-      if (delta.id !== downloadId || !delta.filename) return;
-      chrome.downloads.onChanged.removeListener(onChanged);
-      finish(delta.filename.current);
+      if (delta.id !== downloadId) return;
+      if (delta.filename) {
+        chrome.downloads.onChanged.removeListener(onChanged);
+        finish(delta.filename.current);
+        return;
+      }
+      if (!delta.state) return;
+      if (delta.state.current === 'interrupted') {
+        // Cancelled or failed before a filename existed: stop listening so
+        // the listener can't fire on unrelated future downloads.
+        chrome.downloads.onChanged.removeListener(onChanged);
+        done = true;
+        showToast('Save was cancelled or failed.');
+      } else if (delta.state.current === 'complete') {
+        chrome.downloads.onChanged.removeListener(onChanged);
+        chrome.downloads.search({ id: downloadId }, (items) => {
+          finish(items && items[0] ? items[0].filename : null);
+        });
+      }
     };
     chrome.downloads.onChanged.addListener(onChanged);
 

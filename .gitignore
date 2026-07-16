@@ -3,3 +3,5 @@
 /.roborev/
 # build output (produced by build.sh)
 /dist/
+# playwright-mcp test artifacts
+/.playwright-mcp/
