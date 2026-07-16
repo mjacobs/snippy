@@ -51,6 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Property controls
   const colorSwatches = document.querySelectorAll('.color-swatch');
+  const customColorPicker = document.getElementById('custom-color-picker');
+  const customColorHex = document.getElementById('custom-color-hex');
   const strokeButtons = document.querySelectorAll('.stroke-btn');
   const fillCheckbox = document.getElementById('fill-checkbox');
   const fillSwatches = document.querySelectorAll('.fill-swatch');
@@ -632,19 +634,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+  // Expand shorthand #rgb to #rrggbb for the native <input type="color">,
+  // which only accepts the 6-digit form.
+  function normalizeHex(hex) {
+    if (/^#([0-9a-fA-F]{3})$/.test(hex)) {
+      return '#' + hex.slice(1).split('').map(c => c + c).join('');
+    }
+    return hex;
+  }
+
+  // Applies the chosen color and live-updates any in-progress text edit.
+  function applyActiveColor(color) {
+    activeColor = color;
+
+    if (activeTextarea) {
+      activeTextarea.element.style.color = activeColor;
+    }
+  }
+
+  // Clears the "active" state off every swatch and the custom picker so
+  // exactly one control reflects the current activeColor at a time.
+  function deselectAllColorControls() {
+    colorSwatches.forEach(s => s.classList.remove('active'));
+    if (customColorPicker) customColorPicker.classList.remove('active');
+  }
+
   // Color selection swatches
   colorSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => {
-      colorSwatches.forEach(s => s.classList.remove('active'));
+      deselectAllColorControls();
       swatch.classList.add('active');
-      activeColor = swatch.dataset.color;
-      
-      // Real-time update to active editing text
-      if (activeTextarea) {
-        activeTextarea.element.style.color = activeColor;
+      applyActiveColor(swatch.dataset.color);
+
+      // Clear any pending custom hex input now that a swatch won out.
+      if (customColorHex) {
+        customColorHex.value = '';
+        customColorHex.classList.remove('invalid');
       }
     });
   });
+
+  // Custom color: native swatch picker
+  if (customColorPicker) {
+    customColorPicker.addEventListener('input', () => {
+      deselectAllColorControls();
+      customColorPicker.classList.add('active');
+      applyActiveColor(customColorPicker.value);
+
+      if (customColorHex) {
+        customColorHex.value = customColorPicker.value;
+        customColorHex.classList.remove('invalid');
+      }
+    });
+  }
+
+  // Custom color: hex text input, validated on Enter/change
+  if (customColorHex) {
+    const applyHexInput = () => {
+      const value = customColorHex.value.trim();
+
+      if (!HEX_COLOR_RE.test(value)) {
+        customColorHex.classList.add('invalid');
+        return;
+      }
+
+      customColorHex.classList.remove('invalid');
+      deselectAllColorControls();
+      if (customColorPicker) {
+        customColorPicker.classList.add('active');
+        customColorPicker.value = normalizeHex(value);
+      }
+      applyActiveColor(value);
+    };
+
+    customColorHex.addEventListener('change', applyHexInput);
+    customColorHex.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyHexInput();
+      }
+    });
+  }
 
   // Stroke line width options
   strokeButtons.forEach(btn => {
