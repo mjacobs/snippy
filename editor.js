@@ -170,12 +170,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctx.fillStyle = shape.color;
       ctx.lineWidth = shape.lineWidth;
       ctx.lineJoin = 'round';
-      
+
       const rx = Math.min(shape.x1, shape.x2);
       const ry = Math.min(shape.y1, shape.y2);
       const rw = Math.abs(shape.x2 - shape.x1);
       const rh = Math.abs(shape.y2 - shape.y1);
-      
+
       if (shape.isFilled) {
         ctx.globalAlpha = 0.4; // Semi-transparent fills look ultra-premium
         ctx.fillRect(rx, ry, rw, rh);
@@ -184,7 +184,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         ctx.strokeRect(rx, ry, rw, rh);
       }
-    } 
+    }
+    else if (shape.type === 'ellipse') {
+      ctx.strokeStyle = shape.color;
+      ctx.fillStyle = shape.color;
+      ctx.lineWidth = shape.lineWidth;
+      ctx.lineJoin = 'round';
+
+      const ex = Math.min(shape.x1, shape.x2);
+      const ey = Math.min(shape.y1, shape.y2);
+      const ew = Math.abs(shape.x2 - shape.x1);
+      const eh = Math.abs(shape.y2 - shape.y1);
+      const cx = ex + ew / 2;
+      const cy = ey + eh / 2;
+      const radiusX = ew / 2;
+      const radiusY = eh / 2;
+
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, radiusX, radiusY, 0, 0, Math.PI * 2);
+
+      if (shape.isFilled) {
+        ctx.globalAlpha = 0.4; // Semi-transparent fills look ultra-premium
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.stroke();
+      } else {
+        ctx.stroke();
+      }
+    }
     else if (shape.type === 'arrow') {
       drawArrow(shape.x1, shape.y1, shape.x2, shape.y2, shape.color, shape.lineWidth);
     } 
@@ -340,7 +367,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         y2: startY,
         isFilled: activeFill
       };
-    } 
+    }
+    else if (activeTool === 'ellipse') {
+      currentShape = {
+        type: 'ellipse',
+        color: activeColor,
+        lineWidth: activeLineWidth,
+        x1: startX,
+        y1: startY,
+        x2: startX,
+        y2: startY,
+        isFilled: activeFill
+      };
+    }
     else if (activeTool === 'arrow') {
       currentShape = {
         type: 'arrow',
@@ -566,9 +605,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       propColor.classList.add('hidden');
       propStroke.classList.add('hidden');
     } 
-    else if (activeTool === 'rect') {
+    else if (activeTool === 'rect' || activeTool === 'ellipse') {
       propFill.classList.remove('hidden');
-    } 
+    }
     else if (activeTool === 'highlighter') {
       propStroke.classList.add('hidden'); // highlighter is fixed width
     } 

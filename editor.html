@@ -120,6 +120,14 @@
             <span class="tool-label">Rect</span>
           </button>
 
+          <!-- Ellipse Tool -->
+          <button id="tool-ellipse" class="tool-btn" data-tool="ellipse" title="Draw Ellipse">
+            <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="12" rx="9" ry="7" />
+            </svg>
+            <span class="tool-label">Ellipse</span>
+          </button>
+
           <!-- Highlighter Tool -->
           <button id="tool-highlighter" class="tool-btn" data-tool="highlighter" title="Highlight">
             <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -211,7 +219,7 @@
         </div>
       </div>
 
-      <!-- Fill Option (Rect) -->
+      <!-- Fill Option (Rect, Ellipse) -->
       <div class="property-group hidden" id="prop-fill">
         <div class="section-title">Fill Style</div>
         <div class="fill-toggle-container">
