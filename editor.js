@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } 
     else if (shape.type === 'highlighter') {
       ctx.strokeStyle = shape.color;
-      ctx.lineWidth = 18; // Fixed thick highlighter brush
+      ctx.lineWidth = shape.lineWidth || 18; // Fall back for old shapes
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.globalAlpha = 0.45; // Transparent overlay
@@ -351,13 +351,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize shapes
     if (activeTool === 'pen' || activeTool === 'highlighter') {
+      // Highlighter shares the pen's Thin/Medium/Thick stroke control, but
+      // scaled up 3x so its brush stays visibly broader than the pen's at
+      // every setting (Medium/6 preserves the old fixed 18px look).
+      const resolvedLineWidth = activeTool === 'highlighter'
+        ? activeLineWidth * 3
+        : activeLineWidth;
       currentShape = {
         type: activeTool,
         color: activeColor,
-        lineWidth: activeLineWidth,
+        lineWidth: resolvedLineWidth,
         points: [{ x: startX, y: startY }]
       };
-    } 
+    }
     else if (activeTool === 'rect') {
       currentShape = {
         type: 'rect',
@@ -613,8 +619,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       propFill.classList.remove('hidden');
     }
     else if (activeTool === 'highlighter') {
-      propStroke.classList.add('hidden'); // highlighter is fixed width
-    } 
+      // Highlighter now shares the stroke width control with pen/arrow/rect.
+    }
     else if (activeTool === 'text') {
       propStroke.classList.add('hidden');
       propFont.classList.remove('hidden');
