@@ -70,7 +70,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Editor State
   let bgImage = null;
   let shapes = [];
-  let clearedShapesBackup = null; // Backup to undo a Clear action
+  // Undo history: each entry describes one mutation so Undo can revert
+  // adds, deletes, moves, text re-edits, and full clears uniformly.
+  // Entries: {type:'add',shape} {type:'delete',shape,index}
+  //          {type:'move',shape,dx,dy} {type:'replace',oldShape,newShape}
+  //          {type:'clear',shapes:[...]}
+  let undoStack = [];
   
   let activeTool = 'select'; // select, pen, arrow, rect, highlighter, blur, text
   let activeColor = '#ff3b30'; // Red default
@@ -94,6 +99,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let isDraggingShape = false;
   let dragLastX = 0;          // Last pointer position (backing coords) during a drag
   let dragLastY = 0;
+  let dragTotalDX = 0;        // Accumulated drag delta, recorded for Undo on mouseup
+  let dragTotalDY = 0;
 
   // 1. Load active screenshot from storage
   try {
@@ -472,7 +479,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     // bbox-based hit test (rect, ellipse, blur, text, unknown types)
     const b = getShapeBBox(shape);
-    return x >= b.x1 - tol && x <= b.x2 + tol && y >= b.y1 - tol && y <= b.y2 + tol;
+    if (x < b.x1 - tol || x > b.x2 + tol || y < b.y1 - tol || y > b.y2 + tol) {
+      return false;
+    }
+    // Hollow rect/ellipse: only the outline ring is selectable, so clicks in
+    // the empty interior can reach shapes stacked underneath.
+    if ((shape.type === 'rect' || shape.type === 'ellipse') && !shape.isFilled) {
+      const ring = (shape.lineWidth || 3) / 2 + tol;
+      if (shape.type === 'ellipse') {
+        const cx = (b.x1 + b.x2) / 2;
+        const cy = (b.y1 + b.y2) / 2;
+        const rx = (b.x2 - b.x1) / 2;
+        const ry = (b.y2 - b.y1) / 2;
+        const norm = (rxx, ryy) => {
+          const nx = (x - cx) / rxx;
+          const ny = (y - cy) / ryy;
+          return nx * nx + ny * ny;
+        };
+        if (rx + ring <= 0 || ry + ring <= 0 || norm(rx + ring, ry + ring) > 1) return false;
+        if (rx > ring && ry > ring && norm(rx - ring, ry - ring) < 1) return false;
+        return true;
+      }
+      const insideInner = x >= b.x1 + ring && x <= b.x2 - ring &&
+                          y >= b.y1 + ring && y <= b.y2 - ring;
+      if (insideInner) return false;
+    }
+    return true;
   }
 
   // Topmost shape at a point (iterate from end), or null
@@ -492,11 +524,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Remove the selected shape (Delete/Backspace); Undo semantics unchanged
+  // Remove the selected shape (Delete/Backspace); undoable
   function deleteSelectedShape() {
     if (!selectedShape) return;
     const idx = shapes.indexOf(selectedShape);
-    if (idx !== -1) shapes.splice(idx, 1);
+    if (idx !== -1) {
+      shapes.splice(idx, 1);
+      undoStack.push({ type: 'delete', shape: selectedShape, index: idx });
+    }
     selectedShape = null;
     updateUndoButton();
     drawEverything();
@@ -529,6 +564,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDraggingShape = true;
         dragLastX = sc.x;
         dragLastY = sc.y;
+        dragTotalDX = 0;
+        dragTotalDY = 0;
       } else {
         selectedShape = null;
       }
@@ -668,7 +705,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (isValid) {
       shapes.push(currentShape);
-      clearedShapesBackup = null; // Discard clear backup once a new shape is drawn
+      undoStack.push({ type: 'add', shape: currentShape });
       updateUndoButton();
     }
 
@@ -684,6 +721,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dy = coords.y - dragLastY;
     if (dx !== 0 || dy !== 0) {
       translateShape(selectedShape, dx, dy);
+      dragTotalDX += dx;
+      dragTotalDY += dy;
       dragLastX = coords.x;
       dragLastY = coords.y;
       drawEverything();
@@ -691,7 +730,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   window.addEventListener('mouseup', () => {
-    if (isDraggingShape) isDraggingShape = false;
+    if (!isDraggingShape) return;
+    isDraggingShape = false;
+    // Record the whole drag as one undoable move
+    if (selectedShape && (dragTotalDX !== 0 || dragTotalDY !== 0)) {
+      undoStack.push({ type: 'move', shape: selectedShape, dx: dragTotalDX, dy: dragTotalDY });
+      updateUndoButton();
+    }
+    dragTotalDX = 0;
+    dragTotalDY = 0;
   });
 
   // Cursor feedback: 'move' when hovering a shape in Select mode
@@ -784,6 +831,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Re-edit: reopen at the shape's stored wrap width so lines break the same
     if (sourceShape && sourceShape.width) {
       defaultWidth = sourceShape.width * (canvasRect.width / canvas.width);
+      // The stored width is a content-box measure; a border-box textarea
+      // would shrink by padding+border on every re-edit unless we add them back.
+      if (computed.boxSizing === 'border-box') {
+        const paddingRight = parseStyle(computed.paddingRight, 4);
+        const borderRightWidth = parseStyle(computed.borderRightWidth, 1);
+        defaultWidth += paddingLeft + paddingRight + borderLeftWidth + borderRightWidth;
+      }
     }
     ta.style.width = `${defaultWidth}px`;
 
@@ -797,6 +851,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       backingY: backingY,
       color: editColor,
       fontSize: editFontSize,
+      fontFamily: editFontFamily,
       source: sourceShape || null,
       sourceIndex: (typeof sourceIndex === 'number') ? sourceIndex : null
     };
@@ -852,6 +907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           text: value,
           color: activeTextarea.color,
           fontSize: activeTextarea.fontSize,
+          fontFamily: activeTextarea.fontFamily,
           x1: activeTextarea.backingX,
           y1: activeTextarea.backingY,
           width: backingWidth
@@ -871,13 +927,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Re-inserting at the original index keeps z-order stable across a re-edit
       if (src && typeof activeTextarea.sourceIndex === 'number') {
         shapes.splice(activeTextarea.sourceIndex, 0, shape);
+        undoStack.push({ type: 'replace', oldShape: src, newShape: shape });
       } else {
         shapes.push(shape);
+        undoStack.push({ type: 'add', shape: shape });
       }
-      clearedShapesBackup = null;
       updateUndoButton();
     } else if (src) {
       // Text cleared during a re-edit: leave the original removed (deletion)
+      undoStack.push({ type: 'delete', shape: src, index: activeTextarea.sourceIndex || 0 });
       updateUndoButton();
     }
 
@@ -981,6 +1039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (activeTextarea) {
       activeTextarea.element.style.color = activeColor;
+      activeTextarea.color = activeColor; // Commit must honor mid-edit changes
     }
   }
 
@@ -1066,6 +1125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const canvasRect = canvas.getBoundingClientRect();
     const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
     activeTextarea.element.style.fontSize = `${displayFontScale}px`;
+    activeTextarea.fontSize = activeFontSize; // Commit must honor mid-edit changes
   }
 
   // Highlight whichever quick-preset matches the current size (none if custom).
@@ -1112,6 +1172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (activeTextarea) {
         activeTextarea.element.style.fontFamily = activeFontFamily;
         activeTextarea.element.style.fontWeight = fontWeightForFamily(activeFontFamily);
+        activeTextarea.fontFamily = activeFontFamily; // Commit must honor mid-edit changes
       }
     });
   }
@@ -1136,24 +1197,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================
 
   function updateUndoButton() {
-    btnUndo.disabled = (shapes.length === 0 && clearedShapesBackup === null);
+    btnUndo.disabled = undoStack.length === 0;
   }
 
-  // Undo last action (or restore after a complete clear)
+  // Undo last action (add, delete, move, text re-edit, or full clear)
   btnUndo.addEventListener('click', () => {
     if (activeTextarea) {
       cancelActiveText();
       return;
     }
 
-    if (shapes.length === 0 && clearedShapesBackup !== null) {
-      // Undo a Clear action: Restore all backup shapes
-      shapes = [...clearedShapesBackup];
-      clearedShapesBackup = null;
+    const entry = undoStack.pop();
+    if (!entry) return;
+
+    if (entry.type === 'add') {
+      const idx = shapes.indexOf(entry.shape);
+      if (idx !== -1) shapes.splice(idx, 1);
+      if (selectedShape === entry.shape) selectedShape = null;
+    }
+    else if (entry.type === 'delete') {
+      shapes.splice(Math.min(entry.index, shapes.length), 0, entry.shape);
+    }
+    else if (entry.type === 'move') {
+      translateShape(entry.shape, -entry.dx, -entry.dy);
+    }
+    else if (entry.type === 'replace') {
+      const idx = shapes.indexOf(entry.newShape);
+      if (idx !== -1) shapes.splice(idx, 1, entry.oldShape);
+      if (selectedShape === entry.newShape) selectedShape = null;
+    }
+    else if (entry.type === 'clear') {
+      shapes = [...entry.shapes];
       showToast('All annotations restored!');
-    } else if (shapes.length > 0) {
-      // Normal Undo: Remove last drawn shape
-      shapes.pop();
     }
 
     updateUndoButton();
@@ -1162,22 +1237,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Clear all annotations instantly
   btnClear.addEventListener('click', () => {
+    // Close any in-progress text edit first so commit/cancel can't
+    // resurrect a shape that Clear already wiped.
+    if (activeTextarea) commitActiveText();
     if (shapes.length === 0) return;
-    
-    // Backup for immediate Undo rescue
-    clearedShapesBackup = [...shapes];
+
+    undoStack.push({ type: 'clear', shapes: [...shapes] });
     shapes = [];
-    
+    selectedShape = null;
+
     updateUndoButton();
     drawEverything();
     showToast('Annotations cleared. Press Undo to restore.');
   });
 
+  // Redraw without selection chrome while fn runs so exports (which snapshot
+  // the canvas bitmap synchronously) never include the dashed outline.
+  function withSelectionSuppressed(fn) {
+    const sel = selectedShape;
+    if (sel) {
+      selectedShape = null;
+      drawEverything();
+    }
+    try {
+      fn();
+    } finally {
+      if (sel) {
+        selectedShape = sel;
+        drawEverything();
+      }
+    }
+  }
+
   // Copy to Clipboard (Modern Async API)
   btnCopy.addEventListener('click', () => {
     if (activeTextarea) commitActiveText();
-    
-    canvas.toBlob(async (blob) => {
+
+    // toBlob captures the bitmap at call time, so suppressing selection
+    // around the synchronous call is sufficient.
+    withSelectionSuppressed(() => canvas.toBlob(async (blob) => {
       if (!blob) {
         showToast('Failed to copy. Draw a selection first!');
         return;
@@ -1191,39 +1289,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Clipboard write failed:', err);
         showToast('Clipboard copy failed. Try again or check browser permissions.');
       }
-    }, 'image/png');
+    }, 'image/png'));
   });
 
   // Download JPEG format
   btnSave.addEventListener('click', () => {
     if (activeTextarea) commitActiveText();
     if (!canvas.width || !canvas.height) return;
+    withSelectionSuppressed(() => {
+      // Create an offscreen canvas to paint solid white backdrop under JPEG to preserve transparency clean
+      const downloadCanvas = document.createElement('canvas');
+      downloadCanvas.width = canvas.width;
+      downloadCanvas.height = canvas.height;
 
-    // Create an offscreen canvas to paint solid white backdrop under JPEG to preserve transparency clean
-    const downloadCanvas = document.createElement('canvas');
-    downloadCanvas.width = canvas.width;
-    downloadCanvas.height = canvas.height;
-    
-    const downloadCtx = downloadCanvas.getContext('2d');
-    
-    // Fill pure white backdrop
-    downloadCtx.fillStyle = '#ffffff';
-    downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-    
-    // Composite edited canvas image
-    downloadCtx.drawImage(canvas, 0, 0);
+      const downloadCtx = downloadCanvas.getContext('2d');
 
-    try {
-      const jpegUrl = downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
-      const link = document.createElement('a');
-      link.download = `snippy_${Date.now()}.jpg`;
-      link.href = jpegUrl;
-      link.click();
-      showToast('JPEG saved successfully!');
-    } catch (err) {
-      console.error('JPEG download failed:', err);
-      showToast('Failed to export JPEG.');
-    }
+      // Fill pure white backdrop
+      downloadCtx.fillStyle = '#ffffff';
+      downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+
+      // Composite edited canvas image
+      downloadCtx.drawImage(canvas, 0, 0);
+
+      try {
+        const jpegUrl = downloadCanvas.toDataURL('image/jpeg', 0.95); // High quality compression
+        const link = document.createElement('a');
+        link.download = `snippy_${Date.now()}.jpg`;
+        link.href = jpegUrl;
+        link.click();
+        showToast('JPEG saved successfully!');
+      } catch (err) {
+        console.error('JPEG download failed:', err);
+        showToast('Failed to export JPEG.');
+      }
+    });
   });
 
   // ==========================================
