@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const colorSwatches = document.querySelectorAll('.color-swatch');
   const strokeButtons = document.querySelectorAll('.stroke-btn');
   const fillCheckbox = document.getElementById('fill-checkbox');
+  const fillSwatches = document.querySelectorAll('.fill-swatch');
   const fontSizeButtons = document.querySelectorAll('.font-size-btn');
   
   // Toast
@@ -72,6 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeLineWidth = 3; // Thin
   let activeFontSize = 24; // Medium
   let activeFill = false;
+  let activeFillColor = null; // null = match stroke color
   
   let isDrawing = false;
   let startX = 0;
@@ -167,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } 
     else if (shape.type === 'rect') {
       ctx.strokeStyle = shape.color;
-      ctx.fillStyle = shape.color;
+      ctx.fillStyle = shape.fillColor || shape.color; // Back-compat: old shapes have no fillColor
       ctx.lineWidth = shape.lineWidth;
       ctx.lineJoin = 'round';
 
@@ -187,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     else if (shape.type === 'ellipse') {
       ctx.strokeStyle = shape.color;
-      ctx.fillStyle = shape.color;
+      ctx.fillStyle = shape.fillColor || shape.color; // Back-compat: old shapes have no fillColor
       ctx.lineWidth = shape.lineWidth;
       ctx.lineJoin = 'round';
 
@@ -365,7 +367,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         y1: startY,
         x2: startX,
         y2: startY,
-        isFilled: activeFill
+        isFilled: activeFill,
+        fillColor: activeFillColor
       };
     }
     else if (activeTool === 'ellipse') {
@@ -377,7 +380,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         y1: startY,
         x2: startX,
         y2: startY,
-        isFilled: activeFill
+        isFilled: activeFill,
+        fillColor: activeFillColor
       };
     }
     else if (activeTool === 'arrow') {
@@ -664,6 +668,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Toggle solid fills
   fillCheckbox.addEventListener('change', (e) => {
     activeFill = e.target.checked;
+  });
+
+  // Independent fill color swatches (separate from the stroke color palette)
+  fillSwatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      fillSwatches.forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      // Empty data-fill-color means "match stroke" -> null
+      activeFillColor = swatch.dataset.fillColor || null;
+    });
   });
 
   // ==========================================
