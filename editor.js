@@ -1,6 +1,12 @@
 // Snippy Image Editor
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const {
+    effectiveTextBoxWidth,
+    resizedTextBoxWidth,
+    textBoxResizeHandle
+  } = globalThis.SnippyEditorGeometry;
+
   // Elements
   const canvas = document.getElementById('editor-canvas');
   const canvasWrapper = document.getElementById('canvas-wrapper');
@@ -81,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Entries: {type:'add',shape} {type:'delete',shape,index}
   //          {type:'move',shape,dx,dy} {type:'replace',oldShape,newShape}
   //          {type:'style',shape,prev:{prop:oldValue,...}}
-  //          {type:'reshape',shape,prev:{x1,y1,x2,y2}}
+  //          {type:'reshape',shape,prev:{x1,y1,x2,y2}|{width}}
   //          {type:'clear',shapes:[...]}
   let undoStack = [];
   // Redo history: entries popped off undoStack by Undo, re-applied forward
@@ -121,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let dragTotalDX = 0;        // Accumulated drag delta, recorded for Undo on mouseup
   let dragTotalDY = 0;
   let resizingHandleId = null; // Handle being dragged to reshape, or null
-  let resizePrevCoords = null; // Pre-drag x1/y1/x2/y2, recorded for Undo
+  let resizePrevProps = null;  // Pre-drag shape properties, recorded for Undo
   let resizeAnchor = null;     // Pinned opposite corner for box resizes
 
   // URL of the page the screenshot was captured from; embedded as image
@@ -215,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // chrome only: exports run through withSelectionSuppressed, which clears
   // selectedShape and redraws, so none of it reaches the saved image.
   function drawSelectionOutline(shape) {
-    const b = getShapeBBox(shape);
+    const b = getSelectionBBox(shape);
     const pad = 4;
     ctx.save();
     ctx.strokeStyle = '#007aff';
@@ -270,6 +276,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     lines.push(current);
     return lines;
+  }
+
+  function getTextLayout(shape) {
+    ctx.save();
+    ctx.font = fontString(shape.fontSize, shape.fontFamily || DEFAULT_FONT_FAMILY);
+    const lines = [];
+    for (const paragraph of String(shape.text).split('\n')) {
+      if (shape.width) lines.push(...wrapTextToWidth(paragraph, shape.width));
+      else lines.push(paragraph);
+    }
+    let inkWidth = 0;
+    for (const line of lines) inkWidth = Math.max(inkWidth, ctx.measureText(line).width);
+    ctx.restore();
+
+    return {
+      lines,
+      inkWidth,
+      boxWidth: effectiveTextBoxWidth(shape, inkWidth),
+      height: shape.fontSize * 1.25 * lines.length
+    };
   }
 
   // Helper to draw a single shape
@@ -387,20 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctx.fillStyle = shape.color;
       ctx.font = fontString(shape.fontSize, family);
       ctx.textBaseline = 'top';
-
-      // Split on manual newlines first, then word-wrap each paragraph to the
-      // box width if one was recorded (older shapes without width don't wrap).
-      const paragraphs = shape.text.split('\n');
-      const lines = [];
-      for (const para of paragraphs) {
-        if (shape.width) {
-          for (const wrapped of wrapTextToWidth(para, shape.width)) {
-            lines.push(wrapped);
-          }
-        } else {
-          lines.push(para);
-        }
-      }
+      const { lines } = getTextLayout(shape);
 
       let textY = shape.y1;
 
@@ -487,26 +500,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Normalized bounding box {x1,y1,x2,y2} for any shape (backing coords)
   function getShapeBBox(shape) {
     if (shape.type === 'text') {
-      // Measure per-line extents at the shape's own font, mirroring drawShape:
-      // manual newlines first, then word-wrap to the stored box width if any.
-      ctx.save();
-      ctx.font = fontString(shape.fontSize, shape.fontFamily || DEFAULT_FONT_FAMILY);
-      const lines = [];
-      for (const para of String(shape.text).split('\n')) {
-        if (shape.width) {
-          lines.push(...wrapTextToWidth(para, shape.width));
-        } else {
-          lines.push(para);
-        }
-      }
-      let maxWidth = 0;
-      for (const line of lines) {
-        const w = ctx.measureText(line).width;
-        if (w > maxWidth) maxWidth = w;
-      }
-      ctx.restore();
-      const height = shape.fontSize * 1.25 * lines.length; // textBaseline top
-      return { x1: shape.x1, y1: shape.y1, x2: shape.x1 + maxWidth, y2: shape.y1 + height };
+      const layout = getTextLayout(shape);
+      return {
+        x1: shape.x1,
+        y1: shape.y1,
+        x2: shape.x1 + Math.max(layout.inkWidth, layout.boxWidth),
+        y2: shape.y1 + layout.height
+      };
     }
     if (shape.points && shape.points.length) {
       // pen / highlighter: bbox spanning all points
@@ -525,6 +525,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       y1: Math.min(shape.y1, shape.y2),
       x2: Math.max(shape.x1, shape.x2),
       y2: Math.max(shape.y1, shape.y2)
+    };
+  }
+
+  function getSelectionBBox(shape) {
+    if (shape.type !== 'text') return getShapeBBox(shape);
+    const layout = getTextLayout(shape);
+    return {
+      x1: shape.x1,
+      y1: shape.y1,
+      x2: shape.x1 + layout.boxWidth,
+      y2: shape.y1 + layout.height
     };
   }
 
@@ -606,9 +617,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Reshape handles for a shape, in draw order: endpoints for arrows/lines,
-  // corners for the box-shaped types. Pen/highlighter strokes and text are
-  // move-only and return none.
+  // corners for the box-shaped types. Text has one width handle, while
+  // pen/highlighter strokes are move-only and return none.
   function getHandles(shape) {
+    if (shape.type === 'text') {
+      const layout = getTextLayout(shape);
+      return [textBoxResizeHandle(shape, layout)];
+    }
     if (shape.type === 'arrow' || shape.type === 'line') {
       return [
         { id: 'p1', x: shape.x1, y: shape.y1, cursor: 'grab' },
@@ -644,7 +659,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // mousemove instead — they need the opposite corner pinned for the whole
   // gesture, not derived per move.
   function moveHandleTo(shape, handleId, x, y) {
-    if (handleId === 'p1') { shape.x1 = x; shape.y1 = y; }
+    if (handleId === 'text-e') {
+      shape.width = resizedTextBoxWidth(shape, x);
+    } else if (handleId === 'p1') { shape.x1 = x; shape.y1 = y; }
     else if (handleId === 'p2') { shape.x2 = x; shape.y2 = y; }
   }
 
@@ -696,10 +713,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const handle = getHandleAt(sc.x, sc.y);
       if (handle) {
         resizingHandleId = handle.id;
-        resizePrevCoords = {
-          x1: selectedShape.x1, y1: selectedShape.y1,
-          x2: selectedShape.x2, y2: selectedShape.y2
-        };
+        resizePrevProps = handle.id === 'text-e'
+          ? { width: selectedShape.width }
+          : {
+              x1: selectedShape.x1,
+              y1: selectedShape.y1,
+              x2: selectedShape.x2,
+              y2: selectedShape.y2
+            };
         // Box handles: pin the opposite corner NOW. Deriving it per
         // mousemove re-inspects the (mutating) coords, so once the pointer
         // crossed the opposite edge the formerly fixed corner would start
@@ -894,20 +915,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('mouseup', () => {
     if (!resizingHandleId) return;
     const shape = selectedShape;
-    const prev = resizePrevCoords;
+    const prev = resizePrevProps;
     resizingHandleId = null;
-    resizePrevCoords = null;
+    resizePrevProps = null;
     resizeAnchor = null;
     if (!shape || !prev) return;
 
     normalizeBoxCoords(shape);
 
-    const moved = shape.x1 !== prev.x1 || shape.y1 !== prev.y1 ||
-                  shape.x2 !== prev.x2 || shape.y2 !== prev.y2;
-    if (moved) {
+    const changed = Object.keys(prev).some(key => shape[key] !== prev[key]);
+    if (changed) {
       // Its own type (not 'style') so a following restyle can't coalesce
       // into it; undo restores the saved coords either way.
-      undoStack.push({ type: 'reshape', shape: shape, prev: prev });
+      undoStack.push({ type: 'reshape', shape, prev });
       clearRedoStack();
       updateUndoButton();
     }
@@ -1000,6 +1020,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Create standard textarea
     const ta = document.createElement('textarea');
     ta.className = 'canvas-text-input';
+    if (sourceShape) ta.style.minWidth = '0';
     // When re-editing, preview the shape's own family; otherwise the active one.
     const editFontFamily = sourceShape
       ? (sourceShape.fontFamily || DEFAULT_FONT_FAMILY)
@@ -1121,7 +1142,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const padR = parseFloat(computed.paddingRight) || 0;
       const contentWidthDisplay = el.clientWidth - padL - padR;
       const canvasRect = canvas.getBoundingClientRect();
-      const backingWidth = contentWidthDisplay * (canvas.width / canvasRect.width);
+      const backingWidth = Math.max(
+        activeTextarea.fontSize * 2,
+        contentWidthDisplay * (canvas.width / canvasRect.width)
+      );
 
       let shape;
       if (src) {
@@ -1212,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectedShape = null;
       isDraggingShape = false;
       resizingHandleId = null;
-      resizePrevCoords = null;
+      resizePrevProps = null;
       resizeAnchor = null;
       canvas.style.cursor = '';
 
@@ -1676,6 +1700,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (shape[key] === value) continue;
       prev[key] = shape[key];
       shape[key] = value;
+      if (key === 'fontSize' && shape.type === 'text' &&
+          Number.isFinite(shape.width) && shape.width > 0) {
+        const minimumWidth = value * 2;
+        if (shape.width < minimumWidth) {
+          prev.width = shape.width;
+          shape.width = minimumWidth;
+        }
+      }
       changed = true;
     }
 
@@ -2721,14 +2753,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (selectedShape) {
         // A reshape or move may be mid-gesture: revert it first, otherwise
         // clearing the selection strands a mutation no undo entry records.
-        if (resizingHandleId && resizePrevCoords) {
-          Object.assign(selectedShape, resizePrevCoords);
+        if (resizingHandleId && resizePrevProps) {
+          Object.assign(selectedShape, resizePrevProps);
         }
         if (isDraggingShape && (dragTotalDX !== 0 || dragTotalDY !== 0)) {
           translateShape(selectedShape, -dragTotalDX, -dragTotalDY);
         }
         resizingHandleId = null;
-        resizePrevCoords = null;
+        resizePrevProps = null;
         resizeAnchor = null;
         isDraggingShape = false;
         dragTotalDX = 0;

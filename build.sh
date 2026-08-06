@@ -28,6 +28,7 @@ FILES=(
   offscreen.js
   editor.html
   editor.js
+  editor-geometry.mjs
   editor.css
   LICENSE
   README.md

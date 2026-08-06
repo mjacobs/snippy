@@ -17,7 +17,7 @@ own Google Gemini key.
 
 - **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout. Press <kbd>Enter</kbd> instead of dragging to capture the whole visible page, or skip the overlay entirely with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> on Mac) for a one-click capture of the visible viewport (not the full scroll height) straight to the editor.
 - **Full annotation set** — freehand pen, arrows, rectangles (outline or filled), neon highlighter, text (optional drop shadow, several typefaces), and a **pixelate/blur** tool for redacting sensitive info.
-- **Edit in place** — select any annotation to move it; restyle supported types from the properties panel (color/width/fill/font — blur regions have nothing to restyle) or reshape with drag handles (arrow endpoints, rectangle corners); double-click text to edit it.
+- **Edit in place** — select any annotation to move it; restyle supported types from the properties panel (color/width/fill/font — blur regions have nothing to restyle) or reshape with drag handles (arrow endpoints, shape corners, and text-box width); narrowing text reflows it onto additional lines; double-click text to edit it.
 - **My Colors** — save up to six of your own colors (e.g. brand palette); they persist across sessions.
 - **Undo & redo** — undo the last edit (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>), redo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Y</kbd>), or clear everything and restore it with one undo.
 - **Export** — copy the annotated result straight to your clipboard, or download a high-quality JPEG (white-matted so nothing goes transparent).
@@ -29,7 +29,7 @@ own Google Gemini key.
 
 Snippy isn't on the Chrome Web Store yet. To install it directly:
 
-1. **Download and unzip** `snippy-v1.0.0.zip`. You'll get a folder named `snippy`.
+1. **Download and unzip** the latest `snippy-v<version>.zip` release. You'll get a folder named `snippy`.
 2. Open Chrome and go to **`chrome://extensions`**.
 3. Turn on **Developer mode** (top-right toggle).
 4. Click **Load unpacked** and select the unzipped **`snippy`** folder.

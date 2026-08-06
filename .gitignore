@@ -6,4 +6,8 @@
 # playwright-mcp test artifacts
 /.playwright-mcp/
 
+# agent implementation workspaces
+/.worktrees/
+/.superpowers/
+
 docs/superpowers/

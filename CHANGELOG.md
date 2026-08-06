@@ -3,6 +3,15 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
+## 1.1.1 — 2026-08-06
+
+### Added
+
+- **Resize text boxes to control line wrapping.** Select a text annotation and
+  drag its right-edge handle to set the wrap width. Text reflows as you drag,
+  the left edge stays fixed, and the new width is preserved when editing or
+  changing the font size. Width changes support Undo and Redo.
+
 ## 1.1.0 — 2026-08-06
 
 The "edit what you already drew" release, driven by user feedback.

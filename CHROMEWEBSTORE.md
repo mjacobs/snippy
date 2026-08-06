@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Snippy
 
-> Last Updated: 2026-07-12
+> Last Updated: 2026-08-06
 
 ## Store Listing
 
@@ -109,6 +109,7 @@ https://github.com/mjacobs/snippy
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.1.1 | 2026-08-06 | Resize selected text boxes to control line wrapping, with live reflow, Undo/Redo, and width preservation across editing and font-size changes. See CHANGELOG.md. | Draft |
 | 1.1.0 | 2026-08-06 | Shape editing (restyle + reshape handles), inline text editing from any tool, My Colors saved palette, redo, full-viewport capture shortcut, new fonts, opt-in text shadow (off by default), Quick Snip concurrency fixes. See CHANGELOG.md. | Draft |
 | 1.0.0 | 2026-07-09 | Initial deployment release including overlay canvas selection, vector editing suite, Undo states, and JPEG download/copy actions. | Draft |
 
