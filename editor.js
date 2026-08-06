@@ -805,6 +805,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // small to pass that tool's own validity threshold, so nothing is left
   // behind for the dblclick to collide with.
   canvas.addEventListener('dblclick', (e) => {
+    // While another textarea is open, createTextarea would early-return AFTER
+    // we spliced the hit shape out of `shapes` — silently losing it. Bail
+    // before touching anything.
+    if (activeTextarea) return;
     const coords = getBackingCoords(e.clientX, e.clientY);
     const hit = getShapeAt(coords.x, coords.y);
     if (hit && hit.type === 'text') {
