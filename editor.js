@@ -794,9 +794,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     canvas.style.cursor = getShapeAt(coords.x, coords.y) ? 'move' : 'default';
   });
 
-  // Double-click a text shape in Select mode to re-open it for editing
+  // Double-click a text shape to re-open it for editing. Works regardless of
+  // the active tool so the gesture is discoverable outside Select mode too —
+  // a stray click from another tool's mousedown/mouseup either never starts a
+  // shape (text tool: createTextarea early-returns while activeTextarea is
+  // set, and an empty re-committed textarea is simply discarded) or is too
+  // small to pass that tool's own validity threshold, so nothing is left
+  // behind for the dblclick to collide with.
   canvas.addEventListener('dblclick', (e) => {
-    if (activeTool !== 'select') return;
     const coords = getBackingCoords(e.clientX, e.clientY);
     const hit = getShapeAt(coords.x, coords.y);
     if (hit && hit.type === 'text') {
@@ -1735,7 +1740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     toastMessage.textContent = message;
     toast.classList.add('show');
-    
+
     toastTimeout = setTimeout(() => {
       toast.classList.remove('show');
     }, 3000);
