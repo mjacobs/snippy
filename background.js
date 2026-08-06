@@ -1,15 +1,49 @@
 // Snippy background service worker
 
-async function startCapture(tab, mode) {
-  if (!tab || !tab.id) return;
-
-  // Guard against restricted pages
-  if (tab.url && (
+function isRestrictedTab(tab) {
+  return Boolean(tab && tab.url && (
     tab.url.startsWith('chrome://') ||
     tab.url.startsWith('chrome-extension://') ||
     tab.url.startsWith('https://chrome.google.com/webstore') ||
     tab.url.startsWith('view-source:')
-  )) {
+  ));
+}
+
+// Shared with the 'capture_completed' message handler below: stash the image
+// (plus the page it came from, for export metadata) and open the editor tab.
+async function storeScreenshotAndOpenEditor(dataUrl, sourceUrl) {
+  await chrome.storage.local.set({
+    activeScreenshot: dataUrl,
+    screenshotTimestamp: Date.now(),
+    sourceUrl: sourceUrl || ''
+  });
+  await chrome.tabs.create({ url: chrome.runtime.getURL('editor.html') });
+}
+
+// Full Capture command: grabs the whole visible tab and sends it straight to
+// the editor, bypassing the drag-select overlay entirely — captureVisibleTab
+// already returns the full viewport, so no cropping step is needed.
+async function startFullCapture(tab) {
+  if (!tab || !tab.id) return;
+
+  if (isRestrictedTab(tab)) {
+    console.warn("Snippy cannot be run on Chrome internal or store pages.");
+    return;
+  }
+
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+    await storeScreenshotAndOpenEditor(dataUrl, tab.url || '');
+  } catch (err) {
+    console.error('Snippy full capture failed:', err);
+  }
+}
+
+async function startCapture(tab, mode) {
+  if (!tab || !tab.id) return;
+
+  // Guard against restricted pages
+  if (isRestrictedTab(tab)) {
     console.warn("Snippy cannot be run on Chrome internal or store pages.");
     return;
   }
@@ -150,6 +184,7 @@ chrome.action.onClicked.addListener((tab) => startCapture(tab, 'edit'));
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'quick_snip') startCapture(tab, 'quick');
+  if (command === 'full_capture') startFullCapture(tab);
 });
 
 // Listen for messages from content script
@@ -157,17 +192,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'capture_completed') {
     (async () => {
       try {
-        // Store the cropped image in local storage, along with the page it
-        // came from so the editor can embed it as image metadata on export.
-        await chrome.storage.local.set({
-          activeScreenshot: message.dataUrl,
-          screenshotTimestamp: Date.now(),
-          sourceUrl: (sender.tab && sender.tab.url) || ''
-        });
-        
-        // Open the editor in a new tab
-        await chrome.tabs.create({ url: chrome.runtime.getURL('editor.html') });
-        
+        // Store the cropped image, along with the page it came from so the
+        // editor can embed it as image metadata on export, then open the
+        // editor in a new tab.
+        await storeScreenshotAndOpenEditor(message.dataUrl, sender.tab && sender.tab.url);
+
         sendResponse({ status: 'success' });
       } catch (err) {
         console.error('Failed to store screenshot or open editor:', err);

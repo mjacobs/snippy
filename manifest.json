@@ -46,6 +46,13 @@
          "mac": "Command+Shift+E"
       },
       "description": "Quick Snip — save temp JPEG and copy its file path"
+    },
+    "full_capture": {
+      "suggested_key": {
+         "default": "Ctrl+Shift+F",
+         "mac": "Command+Shift+F"
+      },
+      "description": "Full Capture — whole visible tab straight to editor"
     }
   }
 }
