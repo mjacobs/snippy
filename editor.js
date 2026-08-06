@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // adds, deletes, moves, text re-edits, and full clears uniformly.
   // Entries: {type:'add',shape} {type:'delete',shape,index}
   //          {type:'move',shape,dx,dy} {type:'replace',oldShape,newShape}
+  //          {type:'style',shape,prev:{prop:oldValue,...}}
   //          {type:'clear',shapes:[...]}
   let undoStack = [];
   // Redo history: entries popped off undoStack by Undo, re-applied forward
@@ -579,7 +580,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       undoStack.push({ type: 'delete', shape: selectedShape, index: idx });
       clearRedoStack();
     }
-    selectedShape = null;
+    setSelection(null);
     updateUndoButton();
     drawEverything();
   }
@@ -607,7 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sc = getBackingCoords(e.clientX, e.clientY);
       const hit = getShapeAt(sc.x, sc.y);
       if (hit) {
-        selectedShape = hit;
+        setSelection(hit);
         isDraggingShape = true;
         dragLastX = sc.x;
         dragLastY = sc.y;
@@ -615,14 +616,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         dragTotalDY = 0;
         if (hit.type === 'text') maybeShowTextEditHint();
       } else {
-        selectedShape = null;
+        setSelection(null);
       }
       drawEverything();
       return;
     }
 
     // Any new drawing action clears the current selection.
-    selectedShape = null;
+    setSelection(null);
 
     const coords = getBackingCoords(e.clientX, e.clientY);
     startX = coords.x;
@@ -817,7 +818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hit && hit.type === 'text') {
       const idx = shapes.indexOf(hit);
       if (idx !== -1) shapes.splice(idx, 1);
-      selectedShape = null;
+      setSelection(null);
       const client = getClientCoords(hit.x1, hit.y1);
       createTextarea(client.x, client.y, hit.x1, hit.y1, hit, idx);
       drawEverything();
@@ -1054,6 +1055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       canvas.style.cursor = '';
 
       updatePropertyPanelsVisibility();
+      syncPropertyPanelToSelection();
       drawEverything();
     });
   });
@@ -1068,9 +1070,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     propAiLens.classList.add('hidden');
 
     if (activeTool === 'select') {
-      propColor.classList.add('hidden');
-      propStroke.classList.add('hidden');
-    } 
+      // With something selected the panel edits that shape, so show exactly
+      // the controls its type honors; with nothing selected there is nothing
+      // to style.
+      const sel = (selectedShape && shapes.includes(selectedShape)) ? selectedShape : null;
+      if (!sel) {
+        propColor.classList.add('hidden');
+        propStroke.classList.add('hidden');
+        return;
+      }
+      if (!styleAppliesTo(sel, 'color')) propColor.classList.add('hidden');
+      if (!styleAppliesTo(sel, 'lineWidth')) propStroke.classList.add('hidden');
+      if (styleAppliesTo(sel, 'isFilled')) propFill.classList.remove('hidden');
+      if (styleAppliesTo(sel, 'fontSize')) propFont.classList.remove('hidden');
+    }
     else if (activeTool === 'blur') {
       propColor.classList.add('hidden');
       propStroke.classList.add('hidden');
@@ -1103,14 +1116,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return hex;
   }
 
-  // Applies the chosen color and live-updates any in-progress text edit.
-  function applyActiveColor(color) {
+  // Applies the chosen color to the current selection (if any), to the
+  // for-new-shapes state, and to any in-progress text edit.
+  function applyActiveColor(color, coalesce) {
     activeColor = color;
 
     if (activeTextarea) {
       activeTextarea.element.style.color = activeColor;
       activeTextarea.color = activeColor; // Commit must honor mid-edit changes
     }
+
+    applyStyleToSelection({ color: color }, coalesce);
   }
 
   // Clears the "active" state off every swatch and the custom picker so
@@ -1146,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     customColorPicker.addEventListener('input', () => {
       deselectAllColorControls();
       customColorPicker.classList.add('active');
-      applyActiveColor(customColorPicker.value);
+      applyActiveColor(customColorPicker.value, true); // Fires while dragging
 
       if (customColorHex) {
         customColorHex.value = customColorPicker.value;
@@ -1314,6 +1330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       strokeButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeLineWidth = parseInt(btn.dataset.width, 10);
+      applyStyleToSelection({ lineWidth: activeLineWidth });
     });
   });
 
@@ -1343,6 +1360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       syncFontSizePresets(activeFontSize);
       if (fontSizeInput) fontSizeInput.value = activeFontSize;
       rescaleActiveTextarea();
+      applyStyleToSelection({ fontSize: activeFontSize });
     });
   });
 
@@ -1360,6 +1378,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeFontSize = size;
       syncFontSizePresets(size);
       rescaleActiveTextarea();
+      // Typing fires per keystroke, so fold the whole edit into one undo step.
+      applyStyleToSelection({ fontSize: size }, true);
     };
 
     fontSizeInput.addEventListener('input', () => applyFontSizeInput(false));
@@ -1375,21 +1395,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeTextarea.element.style.fontWeight = fontWeightForFamily(activeFontFamily);
         activeTextarea.fontFamily = activeFontFamily; // Commit must honor mid-edit changes
       }
+      applyStyleToSelection({ fontFamily: activeFontFamily });
     });
   }
 
   // Toggle solid fills
   fillCheckbox.addEventListener('change', (e) => {
     activeFill = e.target.checked;
+    applyStyleToSelection({ isFilled: activeFill });
   });
 
   // Text shadow toggle: default off, per-shape, previewed live while editing.
+  // Also restyles a selected text shape, like the other panel controls.
   if (textShadowCheckbox) {
     textShadowCheckbox.addEventListener('change', (e) => {
       activeTextShadow = e.target.checked;
       if (activeTextarea) {
         activeTextarea.shadow = activeTextShadow;
       }
+      applyStyleToSelection({ shadow: activeTextShadow });
     });
   }
 
@@ -1401,11 +1425,161 @@ document.addEventListener('DOMContentLoaded', async () => {
     swatch.classList.add('active');
     // Empty data-fill-color means "match stroke" -> null
     activeFillColor = swatch.dataset.fillColor || null;
+    applyStyleToSelection({ fillColor: activeFillColor });
   }
 
   fillSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => activateFillSwatch(swatch));
   });
+
+  // ==========================================
+  // Properties Panel <-> Selected Shape
+  // ==========================================
+
+  // Which style properties a given shape type actually honors. Drives both
+  // apply-to-selection and which panel groups are shown for a selection, so
+  // e.g. a color click with a blur region selected is a no-op.
+  function styleAppliesTo(shape, key) {
+    if (key === 'color') {
+      return shape.type !== 'blur';
+    }
+    if (key === 'lineWidth') {
+      return shape.type !== 'blur' && shape.type !== 'text';
+    }
+    if (key === 'isFilled' || key === 'fillColor') {
+      return shape.type === 'rect' || shape.type === 'ellipse';
+    }
+    if (key === 'fontSize' || key === 'fontFamily' || key === 'shadow') {
+      return shape.type === 'text';
+    }
+    return false;
+  }
+
+  // Restyle the current selection in place. `props` uses panel-level values;
+  // properties the shape type ignores are dropped. Undoable as one
+  // {type:'style'} entry. Pass coalesce=true for controls that fire
+  // continuously (number input, native color picker) so a single gesture
+  // doesn't bury the undo stack in one-pixel steps.
+  function applyStyleToSelection(props, coalesce) {
+    if (activeTool !== 'select') return;
+    if (!selectedShape || !shapes.includes(selectedShape)) return;
+
+    const shape = selectedShape;
+    const prev = {};
+    let changed = false;
+
+    for (const key of Object.keys(props)) {
+      if (!styleAppliesTo(shape, key)) continue;
+      let value = props[key];
+      // Highlighter strokes are stored at 3x the panel width (see the
+      // highlighter branch in mousedown); keep that relationship on restyle.
+      if (key === 'lineWidth' && shape.type === 'highlighter') value = value * 3;
+      if (shape[key] === value) continue;
+      prev[key] = shape[key];
+      shape[key] = value;
+      changed = true;
+    }
+
+    if (!changed) {
+      drawEverything(); // Selection outline may still need refreshing
+      return;
+    }
+
+    const top = undoStack[undoStack.length - 1];
+    if (coalesce && top && top.type === 'style' && top.shape === shape) {
+      // Fold into the in-progress gesture, keeping the oldest value per key.
+      for (const key of Object.keys(prev)) {
+        if (!(key in top.prev)) top.prev[key] = prev[key];
+      }
+    } else {
+      undoStack.push({ type: 'style', shape: shape, prev: prev });
+      updateUndoButton();
+    }
+
+    drawEverything();
+  }
+
+  // --- Panel <- shape (reflect properties of whatever is selected) ---
+
+  function syncColorControls(color) {
+    deselectAllColorControls();
+    let matched = false;
+    // Queried live so runtime-created My Colors slots can match too.
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      if (matched) return;
+      if (String(s.dataset.color).toLowerCase() === String(color).toLowerCase()) {
+        s.classList.add('active');
+        matched = true;
+      }
+    });
+    if (!matched && customColorPicker) {
+      customColorPicker.classList.add('active');
+      if (HEX_COLOR_RE.test(String(color))) {
+        customColorPicker.value = normalizeHex(String(color));
+      }
+    }
+  }
+
+  function syncStrokeControls(width) {
+    strokeButtons.forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.width, 10) === width);
+    });
+  }
+
+  function syncFillControls(isFilled, fillColor) {
+    fillCheckbox.checked = !!isFilled;
+    // Queried live so the mirrored My Colors fill swatches can match too.
+    document.querySelectorAll('.fill-swatch').forEach(s => {
+      s.classList.toggle('active', (s.dataset.fillColor || null) === (fillColor || null));
+    });
+  }
+
+  function syncFontControls(size, family, shadow) {
+    syncFontSizePresets(size);
+    if (fontSizeInput) fontSizeInput.value = size;
+    if (textShadowCheckbox) textShadowCheckbox.checked = !!shadow;
+    if (fontFamilySelect) {
+      // Only adopt families the picker actually offers, otherwise the select
+      // would blank out on a shape drawn with a since-removed font.
+      const known = Array.from(fontFamilySelect.options).some(o => o.value === family);
+      if (known) fontFamilySelect.value = family;
+    }
+  }
+
+  // Point the panel at the selected shape, or back at the active
+  // for-new-shapes state when nothing is selected.
+  function syncPropertyPanelToSelection() {
+    const sel = (selectedShape && shapes.includes(selectedShape)) ? selectedShape : null;
+
+    if (!sel) {
+      syncColorControls(activeColor);
+      syncStrokeControls(activeLineWidth);
+      syncFillControls(activeFill, activeFillColor);
+      syncFontControls(activeFontSize, activeFontFamily, activeTextShadow);
+      return;
+    }
+
+    if (styleAppliesTo(sel, 'color')) syncColorControls(sel.color);
+    if (styleAppliesTo(sel, 'lineWidth')) {
+      const width = sel.type === 'highlighter'
+        ? Math.round((sel.lineWidth || 18) / 3)
+        : (sel.lineWidth || 3);
+      syncStrokeControls(width);
+    }
+    if (styleAppliesTo(sel, 'isFilled')) syncFillControls(sel.isFilled, sel.fillColor);
+    if (styleAppliesTo(sel, 'fontSize')) {
+      syncFontControls(sel.fontSize, sel.fontFamily || DEFAULT_FONT_FAMILY, sel.shadow);
+    }
+  }
+
+  // Single entry point for changing the selection so the panel always
+  // follows it. (withSelectionSuppressed deliberately bypasses this: it
+  // hides selection chrome for export without touching the UI.)
+  function setSelection(shape) {
+    selectedShape = shape || null;
+    updatePropertyPanelsVisibility();
+    syncPropertyPanelToSelection();
+  }
 
   // ==========================================
   // Action Buttons: Undo, Redo, Clear, Save, Copy
@@ -1445,6 +1619,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (idx !== -1) shapes.splice(idx, 1, entry.oldShape);
       if (selectedShape === entry.newShape) selectedShape = null;
     }
+    else if (entry.type === 'style') {
+      // Swap current values into the entry so Redo can re-apply them; the
+      // entry toggles between the two states on each undo/redo pass.
+      const cur = {};
+      for (const key of Object.keys(entry.prev)) cur[key] = entry.shape[key];
+      Object.assign(entry.shape, entry.prev);
+      entry.prev = cur;
+    }
     else if (entry.type === 'clear') {
       shapes = [...entry.shapes];
       showToast('All annotations restored!');
@@ -1455,6 +1637,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateUndoButton();
     updateRedoButton();
+    // The selection (and therefore what the panel is editing) may have
+    // changed or been restyled by the undo.
+    updatePropertyPanelsVisibility();
+    syncPropertyPanelToSelection();
     drawEverything();
   });
 
@@ -1484,6 +1670,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (idx !== -1) shapes.splice(idx, 1, entry.newShape);
       if (selectedShape === entry.oldShape) selectedShape = null;
     }
+    else if (entry.type === 'style') {
+      // Same swap as in Undo: re-apply the stored values, keep the ones
+      // being replaced so the next Undo can restore them.
+      const cur = {};
+      for (const key of Object.keys(entry.prev)) cur[key] = entry.shape[key];
+      Object.assign(entry.shape, entry.prev);
+      entry.prev = cur;
+    }
     else if (entry.type === 'clear') {
       shapes = [];
     }
@@ -1493,6 +1687,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateUndoButton();
     updateRedoButton();
+    updatePropertyPanelsVisibility();
+    syncPropertyPanelToSelection();
     drawEverything();
   });
 
@@ -1506,7 +1702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     undoStack.push({ type: 'clear', shapes: [...shapes] });
     clearRedoStack();
     shapes = [];
-    selectedShape = null;
+    setSelection(null);
 
     updateUndoButton();
     drawEverything();
@@ -2309,7 +2505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     else if (e.key === 'Escape') {
       if (selectedShape) {
         // First Escape just clears the selection
-        selectedShape = null;
+        setSelection(null);
         drawEverything();
       } else {
         // Otherwise fall back to switching to the Select tool (by id — its
