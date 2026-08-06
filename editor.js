@@ -108,8 +108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let sourceUrl = '';
 
   // Provenance metadata must not leak secrets when a screenshot is shared:
-  // keep only http(s) URLs, drop credentials and fragments, and redact query
-  // parameters whose names look sensitive (tokens, session ids, signatures).
+  // keep only http(s) URLs, drop credentials, fragments, and the entire query
+  // string — param names can't be trusted to reveal which values are secret.
+  // The path is kept deliberately: origin-only provenance is too coarse to be
+  // useful, and the path rarely carries secrets compared to the query.
   function sanitizeSourceUrl(raw) {
     try {
       const u = new URL(raw);
@@ -117,10 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       u.username = '';
       u.password = '';
       u.hash = '';
-      const SENSITIVE = /token|secret|key|auth|code|session|sig|passw|credential|bearer/i;
-      for (const k of [...u.searchParams.keys()]) {
-        if (SENSITIVE.test(k)) u.searchParams.set(k, 'REDACTED');
-      }
+      u.search = '';
       return u.toString();
     } catch (err) {
       return '';
@@ -1507,14 +1506,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Once the browser has decided the download's final location (instant for a
-  // default download dir, later if "Ask where to save" is on), copy the
-  // absolute path to the clipboard.
+  // Once the download actually completes (not merely once a filename is
+  // known — a download can still be interrupted after that), copy the
+  // absolute path to the clipboard. Mirrors waitForDownloadPath in
+  // background.js (no build step, so the two contexts can't share code).
   function copyDownloadPathWhenReady(downloadId) {
     let done = false;
+    let candidatePath = null;
     const finish = (path) => {
       if (done) return; // onChanged and the initial search can race
       done = true;
+      chrome.downloads.onChanged.removeListener(onChanged);
       if (!path) {
         showToast('Saved, but could not determine the file path.');
         return;
@@ -1526,37 +1528,59 @@ document.addEventListener('DOMContentLoaded', async () => {
           showToast(`Saved to ${path}, but the clipboard copy failed.`);
         });
     };
+    // Cancelled/failed terminal outcome, routed through the same done guard
+    // as finish() so onChanged and the initial search can't both settle.
+    const failInterrupted = () => {
+      if (done) return;
+      done = true;
+      chrome.downloads.onChanged.removeListener(onChanged);
+      showToast('Save was cancelled or failed.');
+    };
 
     const onChanged = (delta) => {
       if (delta.id !== downloadId) return;
       if (delta.filename) {
-        chrome.downloads.onChanged.removeListener(onChanged);
-        finish(delta.filename.current);
-        return;
+        candidatePath = delta.filename.current;
+        // Not terminal on its own — keep listening for the state change.
       }
       if (!delta.state) return;
       if (delta.state.current === 'interrupted') {
-        // Cancelled or failed before a filename existed: stop listening so
-        // the listener can't fire on unrelated future downloads.
-        chrome.downloads.onChanged.removeListener(onChanged);
-        done = true;
-        showToast('Save was cancelled or failed.');
+        failInterrupted();
       } else if (delta.state.current === 'complete') {
-        chrome.downloads.onChanged.removeListener(onChanged);
         chrome.downloads.search({ id: downloadId }, (items) => {
-          finish(items && items[0] ? items[0].filename : null);
+          const item = items && items[0];
+          // The fresh search result's filename can come back empty even on
+          // a completed download; fall back to the last candidate seen
+          // rather than discarding it. Mirrors waitForDownloadPath in
+          // background.js (no build step, so the two contexts can't share
+          // code).
+          finish((item && item.filename) || candidatePath);
         });
       }
     };
     chrome.downloads.onChanged.addListener(onChanged);
 
-    // The filename is often already known; check once and cancel the listener.
+    // Initial reconciliation: the download may already be complete or
+    // interrupted (both terminal), or already have a candidate filename
+    // while still in_progress (keep the listener attached in that case).
+    // onChanged may already have settled the operation by the time this
+    // callback runs, so it returns immediately if done, and routes every
+    // terminal outcome through the same done-guarded finish()/
+    // failInterrupted() used above instead of toasting directly — avoids a
+    // stale/duplicate toast. Mirrors waitForDownloadPath in background.js.
     chrome.downloads.search({ id: downloadId }, (items) => {
+      if (done) return;
       const item = items && items[0];
-      if (item && item.filename) {
-        chrome.downloads.onChanged.removeListener(onChanged);
-        finish(item.filename);
+      if (!item) return;
+      if (item.state === 'interrupted') {
+        failInterrupted();
+        return;
       }
+      if (item.state === 'complete') {
+        finish((item && item.filename) || candidatePath);
+        return;
+      }
+      if (item.filename) candidatePath = item.filename;
     });
   }
 
@@ -1603,6 +1627,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           showToast('Failed to save JPEG.');
           return;
         }
+        // Register in the shared temp registry so the background sweep can
+        // clean this file up after ~24h (same registry as quick snips). The
+        // registry lives in the service worker so all mutations serialize
+        // through its lock; editor.js must not write it directly.
+        chrome.runtime.sendMessage({ action: 'register_tmp_download', downloadId }, () => {
+          void chrome.runtime.lastError; // fire-and-forget
+        });
         copyDownloadPathWhenReady(downloadId);
       }
     );

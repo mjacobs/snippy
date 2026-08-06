@@ -24,6 +24,8 @@ FILES=(
   background.js
   content.js
   content.css
+  offscreen.html
+  offscreen.js
   editor.html
   editor.js
   editor.css
@@ -34,6 +36,7 @@ FILES=(
 DIRS=(
   fonts
   icons
+  native
 )
 
 ### Read the version #########################################################

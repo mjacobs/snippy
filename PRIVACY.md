@@ -22,6 +22,26 @@ Snippy-operated server — there is no Snippy server.
 
 Uninstalling Snippy removes this local data.
 
+### Temporary screenshot files (Quick Snip / Save + Path)
+
+The Quick Snip shortcut and the editor's Save + Path button write the
+screenshot to a file on your own disk so you can paste its path elsewhere:
+
+- The editor's **Save + Path** button always writes to `Downloads/snippy.tmp/`.
+- **Quick Snip** writes to `Downloads/snippy.tmp/` too, unless the optional
+  native helper is installed, in which case it writes to a per-user temp
+  directory (`$XDG_RUNTIME_DIR/snippy`, or `/tmp/snippy-<uid>` as a fallback).
+- Cleanup, per location: files under `Downloads/snippy.tmp/` are removed by
+  Snippy ~24 hours after creation, at the next quick snip or browser startup.
+  Native-helper files are removed ~24 hours after creation at the next
+  helper-backed quick snip; `$XDG_RUNTIME_DIR` is additionally cleared by the
+  OS on logout, while `/tmp` cleanup depends on your OS's policy. To remove
+  all residual files yourself, delete both directories.
+
+These files never leave your device. **Uninstalling the extension does not
+immediately delete files already written to disk** — remove the folders above
+yourself if you want them gone sooner.
+
 ## The one exception: AI Lens
 
 AI Lens is **optional** and does nothing until you supply your own Google API
@@ -61,6 +81,14 @@ all.**
 - **scripting** — inject the selection overlay into the current page.
 - **storage** — hold the captured image, preferences, and (if you set one up)
   your AI Lens key locally.
+- **clipboardWrite** — copy the annotated image or a saved file's path when
+  you ask for it.
+- **downloads** — save JPEGs (Download, Save + Path, Quick Snip fallback) to
+  your own Downloads folder.
+- **offscreen** — copy the saved file's path to your clipboard in an
+  extension-owned page, so the path is never exposed to the web page.
+- **nativeMessaging** — talk to the optional local temp-file helper, only if
+  you installed it (see above).
 
 Snippy requests no host permissions and cannot read pages you don't explicitly
 capture.

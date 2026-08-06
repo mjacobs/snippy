@@ -15,7 +15,7 @@
     }
     
     if (message.action === 'start_selection') {
-      initiateSelection(message.dataUrl);
+      initiateSelection(message.dataUrl, message.mode);
       sendResponse({ status: 'started' });
       return true;
     }
@@ -29,16 +29,19 @@
   let cleanupTimeoutId = null;
   let pendingContainerToRemove = null;
   let currentSessionId = 0;
-  
+  let captureMode = 'edit';
+
   let isDragging = false;
   let startX = 0;
   let startY = 0;
   let currentX = 0;
   let currentY = 0;
 
-  function initiateSelection(dataUrl) {
+  function initiateSelection(dataUrl, mode) {
     // If an overlay already exists, clean it up first
     cleanup();
+
+    captureMode = mode === 'quick' ? 'quick' : 'edit';
 
     // Increment session ID to identify this specific loading attempt
     currentSessionId++;
@@ -268,6 +271,39 @@
 
     const croppedDataUrl = cropCanvas.toDataURL('image/png');
 
+    if (captureMode === 'quick') {
+      // Flatten onto white and encode JPEG here; the editor never opens.
+      const flatCanvas = document.createElement('canvas');
+      flatCanvas.width = cropCanvas.width;
+      flatCanvas.height = cropCanvas.height;
+      const flatCtx = flatCanvas.getContext('2d');
+      flatCtx.fillStyle = '#ffffff';
+      flatCtx.fillRect(0, 0, flatCanvas.width, flatCanvas.height);
+      flatCtx.drawImage(cropCanvas, 0, 0);
+      const jpegDataUrl = flatCanvas.toDataURL('image/jpeg', 0.95);
+
+      cleanup();
+
+      chrome.runtime.sendMessage(
+        { action: 'quick_capture_completed', dataUrl: jpegDataUrl },
+        (response) => {
+          if (chrome.runtime.lastError || !response || response.status !== 'ok') {
+            showSnippyToast('Snippy: save failed');
+            return;
+          }
+          // The background/offscreen contexts perform the clipboard write
+          // themselves and never send the absolute path here — the page's
+          // DOM must never be able to observe it.
+          if (response.copied) {
+            showSnippyToast('Snipped — path copied');
+          } else {
+            showSnippyToast('Saved — path copy failed');
+          }
+        }
+      );
+      return;
+    }
+
     // Clean up interface before navigating away
     cleanup();
 
@@ -325,6 +361,34 @@
         pendingContainerToRemove = null;
       }, 200); // Wait for transition fade out
     }
+  }
+
+  // ===== Quick-mode helper: toast =====
+
+  let snippyToastTimeout = null;
+  let snippyToastRemoveTimeout = null;
+  function showSnippyToast(message) {
+    if (snippyToastRemoveTimeout) {
+      clearTimeout(snippyToastRemoveTimeout);
+      snippyToastRemoveTimeout = null;
+    }
+    let toast = document.querySelector('.snippy-page-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'snippy-page-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    requestAnimationFrame(() => toast.classList.add('show'));
+    if (snippyToastTimeout) clearTimeout(snippyToastTimeout);
+    snippyToastTimeout = setTimeout(() => {
+      toast.classList.remove('show');
+      snippyToastRemoveTimeout = setTimeout(() => {
+        toast.remove();
+        snippyToastRemoveTimeout = null;
+      }, 300);
+      snippyToastTimeout = null;
+    }, 2600);
   }
 
 })();

@@ -5,3 +5,5 @@
 /dist/
 # playwright-mcp test artifacts
 /.playwright-mcp/
+
+docs/superpowers/

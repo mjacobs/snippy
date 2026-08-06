@@ -19,6 +19,7 @@ own Google Gemini key.
 - **Full annotation set** — freehand pen, arrows, rectangles (outline or filled), neon highlighter, text with a drop shadow, and a **pixelate/blur** tool for redacting sensitive info.
 - **Undo & restore** — undo the last edit (<kbd>Ctrl</kbd>+<kbd>Z</kbd>), or clear everything and restore it with one undo.
 - **Export** — copy the annotated result straight to your clipboard, or download a high-quality JPEG (white-matted so nothing goes transparent).
+- **Quick Snip for terminal agents** — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> on Mac) and drag: the region is saved to a temp file and its absolute path lands on your clipboard, ready to paste into Claude Code or any CLI. No editor tab; temp files become eligible for cleanup after ~24 hours and are removed at a later quick snip or browser startup. With the optional [native helper](#silent-saves-optional-native-helper) files go to a per-user temp dir; otherwise to `Downloads/snippy.tmp/`.
 - **AI Lens (optional)** — bring your own Google Gemini or Vertex AI key to read text (OCR), explain a screenshot, translate it, or turn a table into Markdown. See [AI Lens](#ai-lens-optional).
 - **Private by default** — nothing leaves your device unless you explicitly use AI Lens. See [PRIVACY.md](PRIVACY.md).
 
@@ -55,6 +56,36 @@ Snippy isn't on the Chrome Web Store yet. To install it directly:
 | <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>C</kbd> | Copy to clipboard |
 | <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd> | Download image |
 | <kbd>Esc</kbd> | Deselect current tool |
+
+### Quick Snip (path in clipboard)
+
+For a throwaway screenshot to paste into a terminal agent (e.g. Claude Code):
+press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>, drag, release. Snippy
+saves a JPEG to a temp file, copies its absolute path to your clipboard, and
+shows a "Snipped — path copied" toast — just paste the path into the
+terminal. The editor never opens. With the
+[native helper](#silent-saves-optional-native-helper) installed, files go to
+a per-user temp dir and are cleaned ~24 hours later at the next quick snip;
+without it, they go to `Downloads/snippy.tmp/` and are cleaned ~24 hours
+later at the next quick snip or browser restart (this also applies to files
+from the editor's Save + Path button, which always uses `snippy.tmp`).
+Rebind the shortcut at `chrome://extensions/shortcuts`.
+
+### Silent saves (optional native helper)
+
+If Chrome's "Ask where to save each file before downloading" setting is on,
+the downloads API can't save silently — you'd get a file chooser on every
+quick snip. Installing the bundled native-messaging helper avoids that
+(Linux and macOS; Python 3 required): run
+`./native/install-host.sh <extension-id>` once (find your extension ID at
+chrome://extensions with Developer mode on, on the Snippy card), then reload
+the extension. Quick snips then write straight to `$XDG_RUNTIME_DIR/snippy`
+(or `/tmp/snippy-<uid>` if `$XDG_RUNTIME_DIR` isn't set) with no chooser,
+regardless of that Chrome setting. The OS handles cleanup of that directory
+on its own schedule (the helper also opportunistically removes its own files
+after ~24 hours). Without the helper installed, Snippy falls back to
+`Downloads/snippy.tmp/` as described above — where that Chrome setting, if
+enabled, will show a pre-filled chooser you just need to confirm.
 
 ## AI Lens (optional)
 

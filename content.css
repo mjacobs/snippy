@@ -99,3 +99,26 @@
     opacity: 1;
   }
 }
+
+/* Quick-mode on-page toast */
+.snippy-page-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: rgba(24, 24, 27, 0.92);
+  color: #ffffff;
+  font: 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 2147483647;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+
+.snippy-page-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

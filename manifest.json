@@ -2,11 +2,14 @@
   "manifest_version": 3,
   "name": "Snippy",
   "version": "1.0.0",
+  "minimum_chrome_version": "116",
   "description": "A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.",
   "permissions": [
     "activeTab",
     "clipboardWrite",
     "downloads",
+    "nativeMessaging",
+    "offscreen",
     "scripting",
     "storage"
   ],
@@ -36,6 +39,13 @@
          "mac": "Command+Shift+S"
       },
       "description": "Trigger Snippy selection"
+    },
+    "quick_snip": {
+      "suggested_key": {
+         "default": "Ctrl+Shift+E",
+         "mac": "Command+Shift+E"
+      },
+      "description": "Quick Snip — save temp JPEG and copy its file path"
     }
   }
 }
