@@ -1844,8 +1844,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Silent save: no picker dialog (saveAs: false overrides the browser's
-    // "Ask where to save" setting), into a dedicated scratch subfolder.
+    // Save into a dedicated scratch subfolder. saveAs: false skips the
+    // picker dialog UNLESS the browser's "Ask where to save each file"
+    // setting is on — then Chrome still shows a dialog preselecting
+    // snippy.tmp, and a user who redirects the save elsewhere gets a file
+    // the cleanup sweep will NOT delete (only the registry entry expires).
     // Chrome only allows downloads inside the Downloads directory and
     // rejects hidden (dot-prefixed) components, so Downloads/snippy.tmp
     // is the closest thing to a /tmp drop zone.

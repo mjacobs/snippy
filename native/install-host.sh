@@ -18,14 +18,20 @@ EOF
   exit 1
 fi
 [[ "$EXT_ID" =~ ^[a-p]{32}$ ]] || { echo "Invalid extension ID: $EXT_ID" >&2; exit 1; }
-HOST_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/snippy_host.py"
+SRC_HOST_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/snippy_host.py"
 
 # Chrome reads native-messaging host manifests from a per-OS directory; a
 # manifest written anywhere else is silently ignored, so refuse rather than
 # report a success Chrome will never see.
 case "$(uname -s)" in
-  Linux)  HOST_DIR="$HOME/.config/google-chrome/NativeMessagingHosts" ;;
-  Darwin) HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts" ;;
+  Linux)
+    HOST_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
+    DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/snippy"
+    ;;
+  Darwin)
+    HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+    DATA_DIR="$HOME/Library/Application Support/Snippy"
+    ;;
   *)
     echo "Unsupported platform: $(uname -s). The helper supports Linux and macOS;" >&2
     echo "on Windows the native host would need a registry entry (not provided)." >&2
@@ -35,9 +41,16 @@ esac
 HOST_MANIFEST="$HOST_DIR/io.kenn.snippy.json"
 LAUNCHER="$HOST_DIR/io.kenn.snippy.launcher.sh"
 
-chmod +x "$HOST_PATH"
-
 [[ -d "$HOST_DIR" ]] || mkdir -p "$HOST_DIR"
+
+# Copy the helper to a stable per-user location and point the launcher at
+# the copy: referencing the checkout would silently break Quick Snip if the
+# checkout is moved or deleted (the ambiguous native-host failure also
+# blocks the downloads fallback). Re-run this installer to refresh the copy
+# after updating the checkout.
+mkdir -p "$DATA_DIR"
+HOST_PATH="$DATA_DIR/snippy_host.py"
+install -m 755 "$SRC_HOST_PATH" "$HOST_PATH"
 
 # Chrome launches native hosts with its own (minimal) environment, not the
 # terminal's PATH — on macOS a Homebrew python3 found here may be invisible

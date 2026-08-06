@@ -68,7 +68,9 @@ terminal. The editor never opens. With the
 a per-user temp dir and are cleaned ~24 hours later at the next quick snip;
 without it, they go to `Downloads/snippy.tmp/` and are cleaned ~24 hours
 later at the next quick snip or browser restart (this also applies to files
-from the editor's Save + Path button, which always uses `snippy.tmp`).
+from the editor's Save + Path button, which defaults to `snippy.tmp`;
+if Chrome's "Ask where to save" setting is on and you pick a different
+location, that file is yours and is not auto-cleaned).
 Rebind the shortcut at `chrome://extensions/shortcuts`.
 
 ### Silent saves (optional native helper)

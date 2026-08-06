@@ -27,7 +27,10 @@ Uninstalling Snippy removes this local data.
 The Quick Snip shortcut and the editor's Save + Path button write the
 screenshot to a file on your own disk so you can paste its path elsewhere:
 
-- The editor's **Save + Path** button always writes to `Downloads/snippy.tmp/`.
+- The editor's **Save + Path** button writes to `Downloads/snippy.tmp/`. If
+  Chrome's "Ask where to save each file before downloading" setting is on,
+  Chrome shows a save dialog with that location preselected — a file you
+  redirect somewhere else is yours and is **not** cleaned up by Snippy.
 - **Quick Snip** writes to `Downloads/snippy.tmp/` too, unless the optional
   native helper is installed, in which case it writes to a per-user temp
   directory (`$XDG_RUNTIME_DIR/snippy`, or `/tmp/snippy-<uid>` as a fallback).

@@ -187,6 +187,9 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'full_capture') startFullCapture(tab);
 });
 
+// Monotonic ticket for quick snips; see quick_capture_completed below.
+let quickSnipSeq = 0;
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'capture_completed') {
@@ -218,6 +221,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'quick_capture_completed') {
     (async () => {
+      // Back-to-back quick snips run concurrently; an older, slower save
+      // must not overwrite the clipboard (or success toast) of a newer one.
+      // Each request takes the next sequence number and any request that is
+      // no longer the newest drops its clipboard write and reports failure.
+      const seq = ++quickSnipSeq;
       try {
         // Native-first: Chrome's "Ask where to save each file before
         // downloading" preference forces a save-file dialog even for
@@ -230,6 +238,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // below unchanged.
         const native = await saveTempViaNativeHost(message.dataUrl);
         if (native.path) {
+          if (seq !== quickSnipSeq) {
+            // A newer quick snip started while we were saving: its path is
+            // the one the user wants on the clipboard, not ours.
+            sendResponse({ status: 'error' });
+            return;
+          }
           const copied = await copyTextViaOffscreen(native.path);
           sendResponse({ status: 'ok', copied });
           // Still sweep old Downloads/snippy.tmp entries (from Save+Path or
@@ -264,7 +278,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         const path = await waitForDownloadPath(downloadId);
         if (path) {
+          // Register even if superseded — the file exists on disk and must
+          // be swept by cleanup regardless of who owns the clipboard.
           await registerTmpDownload(downloadId);
+          if (seq !== quickSnipSeq) {
+            sendResponse({ status: 'error' });
+            return;
+          }
           // The absolute path stays in the background/offscreen contexts —
           // it is never sent to the content script or rendered in the page.
           const copied = await copyTextViaOffscreen(path);

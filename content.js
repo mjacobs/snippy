@@ -286,8 +286,6 @@
       0, 0, w * ratio, h * ratio                  // dest rect
     );
 
-    const croppedDataUrl = cropCanvas.toDataURL('image/png');
-
     if (captureMode === 'quick') {
       // Flatten onto white and encode JPEG here; the editor never opens.
       const flatCanvas = document.createElement('canvas');
@@ -320,6 +318,11 @@
       );
       return;
     }
+
+    // Edit mode only: quick mode above encodes its own JPEG, so encoding
+    // the (lossless, large) PNG there would be pure wasted CPU on big
+    // high-DPI selections.
+    const croppedDataUrl = cropCanvas.toDataURL('image/png');
 
     // Clean up interface before navigating away
     cleanup();
