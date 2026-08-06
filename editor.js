@@ -55,8 +55,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const colorSwatches = document.querySelectorAll('.color-swatch');
   const customColorPicker = document.getElementById('custom-color-picker');
   const customColorHex = document.getElementById('custom-color-hex');
+  const myColorsPalette = document.getElementById('my-colors-palette');
+  const myColorsAdd = document.getElementById('my-colors-add');
   const strokeButtons = document.querySelectorAll('.stroke-btn');
   const fillCheckbox = document.getElementById('fill-checkbox');
+  const fillPalette = document.querySelector('.fill-palette');
   const fillSwatches = document.querySelectorAll('.fill-swatch');
   const fontSizeButtons = document.querySelectorAll('.font-size-btn');
   const fontSizeInput = document.getElementById('font-size-input');
@@ -1112,24 +1115,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Clears the "active" state off every swatch and the custom picker so
   // exactly one control reflects the current activeColor at a time.
+  // Queried live because My Colors slots are created at runtime.
   function deselectAllColorControls() {
-    colorSwatches.forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.color-swatch.active')
+      .forEach(s => s.classList.remove('active'));
     if (customColorPicker) customColorPicker.classList.remove('active');
+  }
+
+  // Single activation path shared by the preset swatches and the runtime
+  // My Colors slots, so both behave identically.
+  function activateColorSwatch(swatch) {
+    deselectAllColorControls();
+    swatch.classList.add('active');
+    applyActiveColor(swatch.dataset.color);
+
+    // Clear any pending custom hex input now that a swatch won out.
+    if (customColorHex) {
+      customColorHex.value = '';
+      customColorHex.classList.remove('invalid');
+    }
   }
 
   // Color selection swatches
   colorSwatches.forEach(swatch => {
-    swatch.addEventListener('click', () => {
-      deselectAllColorControls();
-      swatch.classList.add('active');
-      applyActiveColor(swatch.dataset.color);
-
-      // Clear any pending custom hex input now that a swatch won out.
-      if (customColorHex) {
-        customColorHex.value = '';
-        customColorHex.classList.remove('invalid');
-      }
-    });
+    swatch.addEventListener('click', () => activateColorSwatch(swatch));
   });
 
   // Custom color: native swatch picker
@@ -1173,6 +1182,131 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
+  // ==========================================
+  // My Colors: up to 6 remembered colors
+  // ==========================================
+  // Persisted as an array of hex strings under a single chrome.storage.local
+  // key so a user's own palette (e.g. brand colors) survives sessions.
+  const MY_COLORS_KEY = 'snippyMyColors';
+  const MY_COLORS_MAX = 6;
+  let myColors = [];
+
+  function persistMyColors() {
+    chrome.storage.local.set({ [MY_COLORS_KEY]: myColors });
+  }
+
+  // Mirrors the saved colors into the fill palette so a remembered color is
+  // one click away for shape fills too.
+  function renderMyColorFills() {
+    if (!fillPalette) return;
+
+    const previousActive = fillPalette.querySelector('.my-color-fill.active');
+    const previousColor = previousActive ? previousActive.dataset.fillColor : null;
+    fillPalette.querySelectorAll('.my-color-fill').forEach(el => el.remove());
+
+    myColors.forEach(color => {
+      const swatch = document.createElement('button');
+      swatch.className = 'fill-swatch my-color-fill';
+      swatch.dataset.fillColor = color;
+      swatch.style.backgroundColor = color;
+      swatch.title = `${color} (My Colors)`;
+      swatch.addEventListener('click', () => activateFillSwatch(swatch));
+      if (color === previousColor) swatch.classList.add('active');
+      fillPalette.appendChild(swatch);
+    });
+
+    // The selected fill color was just removed from My Colors: fall back to
+    // "Match Stroke" so the panel never shows an empty selection.
+    if (previousColor && !myColors.includes(previousColor)) {
+      const matchStroke = fillPalette.querySelector('.fill-swatch.match-stroke');
+      if (matchStroke) activateFillSwatch(matchStroke);
+    }
+  }
+
+  // Rebuilds the six slots; empty ones stay as dashed placeholders that also
+  // act as "save the current color here".
+  function renderMyColors() {
+    if (!myColorsPalette) return;
+
+    const previousActive = myColorsPalette.querySelector('.my-color-slot.active');
+    const previousColor = previousActive ? previousActive.dataset.color : null;
+    myColorsPalette.innerHTML = '';
+
+    for (let i = 0; i < MY_COLORS_MAX; i++) {
+      const color = myColors[i];
+      const slot = document.createElement('button');
+      slot.className = 'color-swatch my-color-slot';
+
+      if (color) {
+        slot.dataset.color = color;
+        slot.style.backgroundColor = color;
+        slot.title = `${color} — click to use, right-click to remove`;
+        slot.addEventListener('click', () => activateColorSwatch(slot));
+        slot.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          removeMyColor(color);
+        });
+        if (color === previousColor) slot.classList.add('active');
+      } else {
+        slot.classList.add('empty');
+        slot.title = 'Empty slot — click to save the current color';
+        slot.addEventListener('click', saveCurrentColor);
+      }
+
+      myColorsPalette.appendChild(slot);
+    }
+
+    renderMyColorFills();
+  }
+
+  // Saves whatever color is currently active (preset swatch, picker, or hex)
+  // into the next free slot. Once all six are full the oldest entry is
+  // dropped (FIFO) so "+" always succeeds.
+  function saveCurrentColor() {
+    const color = normalizeHex(activeColor).toLowerCase();
+    if (!HEX_COLOR_RE.test(color)) return;
+
+    if (myColors.includes(color)) {
+      showToast('That color is already in My Colors.');
+      return;
+    }
+
+    myColors.push(color);
+    if (myColors.length > MY_COLORS_MAX) myColors.shift();
+
+    persistMyColors();
+    renderMyColors();
+  }
+
+  function removeMyColor(color) {
+    const index = myColors.indexOf(color);
+    if (index === -1) return;
+
+    myColors.splice(index, 1);
+    persistMyColors();
+    renderMyColors();
+  }
+
+  async function initMyColors() {
+    try {
+      const stored = await chrome.storage.local.get([MY_COLORS_KEY]);
+      const saved = stored && stored[MY_COLORS_KEY];
+      if (Array.isArray(saved)) {
+        myColors = saved
+          .filter(c => typeof c === 'string' && HEX_COLOR_RE.test(c))
+          .slice(0, MY_COLORS_MAX);
+      }
+    } catch (err) {
+      console.error('Failed to load My Colors:', err);
+    }
+    renderMyColors();
+  }
+
+  if (myColorsAdd) {
+    myColorsAdd.addEventListener('click', saveCurrentColor);
+  }
+  initMyColors();
 
   // Stroke line width options
   strokeButtons.forEach(btn => {
@@ -1259,14 +1393,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Independent fill color swatches (separate from the stroke color palette)
+  // Independent fill color swatches (separate from the stroke color palette).
+  // Queried live so the mirrored My Colors fill swatches take part too.
+  function activateFillSwatch(swatch) {
+    document.querySelectorAll('.fill-swatch.active')
+      .forEach(s => s.classList.remove('active'));
+    swatch.classList.add('active');
+    // Empty data-fill-color means "match stroke" -> null
+    activeFillColor = swatch.dataset.fillColor || null;
+  }
+
   fillSwatches.forEach(swatch => {
-    swatch.addEventListener('click', () => {
-      fillSwatches.forEach(s => s.classList.remove('active'));
-      swatch.classList.add('active');
-      // Empty data-fill-color means "match stroke" -> null
-      activeFillColor = swatch.dataset.fillColor || null;
-    });
+    swatch.addEventListener('click', () => activateFillSwatch(swatch));
   });
 
   // ==========================================

@@ -233,6 +233,15 @@
           <input type="color" id="custom-color-picker" class="custom-color-picker" value="#ff3b30" title="Pick a custom color">
           <input type="text" id="custom-color-hex" class="text-input custom-color-hex" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off">
         </div>
+        <!-- My Colors: up to 6 remembered colors, persisted across sessions.
+             Slots are rendered by editor.js from chrome.storage.local. -->
+        <div class="my-colors-section">
+          <div class="my-colors-header">
+            <span class="my-colors-label">My Colors</span>
+            <button class="my-colors-add" id="my-colors-add" title="Save the current color to My Colors">+</button>
+          </div>
+          <div class="my-colors-palette" id="my-colors-palette"></div>
+        </div>
       </div>
 
       <!-- Stroke Width (Pen, Arrow, Rect) -->

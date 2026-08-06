@@ -427,6 +427,73 @@ aside.right-properties {
   background-color: rgba(239, 68, 68, 0.08);
 }
 
+/* My Colors: up to 6 user-remembered colors, saved with the "+" button.
+   Empty slots are dashed placeholders so the row keeps its shape. */
+.my-colors-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.my-colors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.my-colors-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.my-colors-add {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.my-colors-add:hover {
+  color: var(--text-main);
+  border-color: var(--text-main);
+}
+
+.my-colors-palette {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.my-colors-palette .color-swatch {
+  border-width: 1.5px;
+}
+
+.my-color-slot.empty {
+  background-color: transparent;
+  border: 1.5px dashed var(--border-light);
+  cursor: pointer;
+}
+
+.my-color-slot.empty:hover {
+  border-color: var(--text-muted);
+}
+
 /* Stroke Width Buttons */
 .stroke-selector {
   display: flex;
