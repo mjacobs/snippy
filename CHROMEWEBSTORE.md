@@ -109,6 +109,7 @@ https://github.com/mjacobs/snippy
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.1.0 | 2026-08-06 | Shape editing (restyle + reshape handles), inline text editing from any tool, My Colors saved palette, redo, full-viewport capture shortcut, new fonts, opt-in text shadow (off by default), Quick Snip concurrency fixes. See CHANGELOG.md. | Draft |
 | 1.0.0 | 2026-07-09 | Initial deployment release including overlay canvas selection, vector editing suite, Undo states, and JPEG download/copy actions. | Draft |
 
 ## Review Notes
