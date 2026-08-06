@@ -81,6 +81,7 @@
     banner.innerHTML = `
       <span class="snippy-banner-icon"></span>
       <span class="snippy-banner-text">Drag to select area</span>
+      <span class="snippy-banner-shortcut">ENTER for full page</span>
       <span class="snippy-banner-shortcut">ESC to cancel</span>
     `;
     overlayContainer.appendChild(banner);
@@ -240,7 +241,23 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       cleanup();
+      return;
     }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      selectFullPage();
+    }
+  }
+
+  // Enter-key affordance: select the entire viewport, matching a drag from
+  // corner to corner, and submit it through the normal crop/submit path.
+  function selectFullPage() {
+    isDragging = false;
+    startX = 0;
+    startY = 0;
+    currentX = window.innerWidth;
+    currentY = window.innerHeight;
+    cropAndSubmit();
   }
 
   function cropAndSubmit() {
