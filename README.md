@@ -15,11 +15,11 @@ own Google Gemini key.
 
 ## Features
 
-- **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout. Press <kbd>Enter</kbd> instead of dragging to capture the whole visible page, or skip the overlay entirely with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> on Mac) for a one-click full-tab capture straight to the editor.
+- **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout. Press <kbd>Enter</kbd> instead of dragging to capture the whole visible page, or skip the overlay entirely with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> on Mac) for a one-click capture of the visible viewport (not the full scroll height) straight to the editor.
 - **Full annotation set** — freehand pen, arrows, rectangles (outline or filled), neon highlighter, text (optional drop shadow, several typefaces), and a **pixelate/blur** tool for redacting sensitive info.
-- **Edit in place** — select any annotation to move it, restyle it from the properties panel, or reshape it with drag handles (arrow endpoints, rectangle corners); double-click text to edit it.
+- **Edit in place** — select any annotation to move it; restyle supported types from the properties panel (color/width/fill/font — blur regions have nothing to restyle) or reshape with drag handles (arrow endpoints, rectangle corners); double-click text to edit it.
 - **My Colors** — save up to six of your own colors (e.g. brand palette); they persist across sessions.
-- **Undo & redo** — undo the last edit (<kbd>Ctrl</kbd>+<kbd>Z</kbd>), redo (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>+<kbd>Y</kbd>), or clear everything and restore it with one undo.
+- **Undo & redo** — undo the last edit (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>), redo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Y</kbd>), or clear everything and restore it with one undo.
 - **Export** — copy the annotated result straight to your clipboard, or download a high-quality JPEG (white-matted so nothing goes transparent).
 - **Quick Snip for terminal agents** — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> on Mac) and drag: the region is saved to a temp file and its absolute path lands on your clipboard, ready to paste into Claude Code or any CLI. No editor tab; temp files become eligible for cleanup after ~24 hours and are removed at a later quick snip or browser startup. With the optional [native helper](#silent-saves-optional-native-helper) files go to a per-user temp dir; otherwise to `Downloads/snippy.tmp/`.
 - **AI Lens (optional)** — bring your own Google Gemini or Vertex AI key to read text (OCR), explain a screenshot, translate it, or turn a table into Markdown. See [AI Lens](#ai-lens-optional).
@@ -83,7 +83,8 @@ quick snip. Installing the bundled native-messaging helper avoids that
 (Linux and macOS; Python 3 required): run
 `./native/install-host.sh <extension-id>` once (find your extension ID at
 chrome://extensions with Developer mode on, on the Snippy card), then reload
-the extension. Quick snips then write straight to `$XDG_RUNTIME_DIR/snippy`
+the extension. The installer copies the helper to a stable per-user
+directory, so re-run it after upgrading Snippy to pick up helper changes. Quick snips then write straight to `$XDG_RUNTIME_DIR/snippy`
 (or `/tmp/snippy-<uid>` if `$XDG_RUNTIME_DIR` isn't set) with no chooser,
 regardless of that Chrome setting. The OS handles cleanup of that directory
 on its own schedule (the helper also opportunistically removes its own files

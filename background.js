@@ -190,6 +190,22 @@ chrome.commands.onCommand.addListener((command, tab) => {
 // Monotonic ticket for quick snips; see quick_capture_completed below.
 let quickSnipSeq = 0;
 
+// Clipboard writes serialize through this promise chain, and the sequence
+// is re-checked INSIDE the serialized section: copyTextViaOffscreen awaits
+// offscreen-document setup, so without this a newer snip could write first
+// and then be overwritten when the older request resumed. Resolves to
+// { superseded: true } or { copied: boolean }.
+let clipboardChain = Promise.resolve();
+function copyPathIfCurrent(seq, text) {
+  const run = clipboardChain.then(async () => {
+    if (seq !== quickSnipSeq) return { superseded: true };
+    const copied = await copyTextViaOffscreen(text);
+    return { copied };
+  });
+  clipboardChain = run.then(() => {}, () => {});
+  return run;
+}
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'capture_completed') {
@@ -238,14 +254,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // below unchanged.
         const native = await saveTempViaNativeHost(message.dataUrl);
         if (native.path) {
-          if (seq !== quickSnipSeq) {
-            // A newer quick snip started while we were saving: its path is
-            // the one the user wants on the clipboard, not ours.
-            sendResponse({ status: 'error' });
+          // A newer quick snip may have started while we were saving: its
+          // path is the one the user wants on the clipboard, not ours. The
+          // re-check happens inside the serialized clipboard section.
+          const result = await copyPathIfCurrent(seq, native.path);
+          if (result.superseded) {
+            sendResponse({ status: 'superseded' });
             return;
           }
-          const copied = await copyTextViaOffscreen(native.path);
-          sendResponse({ status: 'ok', copied });
+          sendResponse({ status: 'ok', copied: result.copied });
           // Still sweep old Downloads/snippy.tmp entries (from Save+Path or
           // pre-helper snips) so "cleaned at the next quick snip" holds
           // regardless of which save path this snip took.
@@ -281,14 +298,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Register even if superseded — the file exists on disk and must
           // be swept by cleanup regardless of who owns the clipboard.
           await registerTmpDownload(downloadId);
-          if (seq !== quickSnipSeq) {
-            sendResponse({ status: 'error' });
-            return;
-          }
           // The absolute path stays in the background/offscreen contexts —
           // it is never sent to the content script or rendered in the page.
-          const copied = await copyTextViaOffscreen(path);
-          sendResponse({ status: 'ok', copied });
+          const result = await copyPathIfCurrent(seq, path);
+          if (result.superseded) {
+            sendResponse({ status: 'superseded' });
+            return;
+          }
+          sendResponse({ status: 'ok', copied: result.copied });
           cleanupOldTmpDownloads().catch((err) => console.warn('Snippy temp cleanup failed:', err));
         } else {
           sendResponse({ status: 'error' });

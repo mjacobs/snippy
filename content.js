@@ -112,7 +112,9 @@
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('keydown', handleKeyDown);
+    // Capture phase so Escape/Enter reach the overlay before any page
+    // handler can act on (or swallow) them while the overlay is up.
+    window.addEventListener('keydown', handleKeyDown, true);
   }
 
   function drawInitialState() {
@@ -240,11 +242,13 @@
   function handleKeyDown(e) {
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       cleanup();
       return;
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       selectFullPage();
     }
   }
@@ -302,6 +306,10 @@
       chrome.runtime.sendMessage(
         { action: 'quick_capture_completed', dataUrl: jpegDataUrl },
         (response) => {
+          // A superseded snip lost the race to a newer one that already
+          // owns the clipboard — stay silent instead of replacing the
+          // newer snip's success toast with a misleading error.
+          if (response && response.status === 'superseded') return;
           if (chrome.runtime.lastError || !response || response.status !== 'ok') {
             showSnippyToast('Snippy: save failed');
             return;
@@ -349,7 +357,7 @@
     }
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('mouseup', handleMouseUp);
-    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keydown', handleKeyDown, true);
 
     // If there is a pending fade-out, cancel it and remove the container immediately
     if (cleanupTimeoutId) {

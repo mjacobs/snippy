@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let dragTotalDY = 0;
   let resizingHandleId = null; // Handle being dragged to reshape, or null
   let resizePrevCoords = null; // Pre-drag x1/y1/x2/y2, recorded for Undo
+  let resizeAnchor = null;     // Pinned opposite corner for box resizes
 
   // URL of the page the screenshot was captured from; embedded as image
   // metadata (XMP / PNG iTXt) on export.
@@ -638,23 +639,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null;
   }
 
-  // Rewrite the shape's coords so the dragged handle sits at (x, y). Box
-  // types keep the opposite corner pinned; endpoints just follow the pointer.
+  // Rewrite the shape's coords so the dragged endpoint handle sits at
+  // (x, y). Box corners are handled by the resizeAnchor path in the reshape
+  // mousemove instead — they need the opposite corner pinned for the whole
+  // gesture, not derived per move.
   function moveHandleTo(shape, handleId, x, y) {
-    if (handleId === 'p1') { shape.x1 = x; shape.y1 = y; return; }
-    if (handleId === 'p2') { shape.x2 = x; shape.y2 = y; return; }
-
-    // Box handles are named against the normalized box, so map each one onto
-    // whichever stored field currently holds that edge.
-    const leftIsX1 = shape.x1 <= shape.x2;
-    const topIsY1 = shape.y1 <= shape.y2;
-    const setLeft = (v) => { if (leftIsX1) shape.x1 = v; else shape.x2 = v; };
-    const setRight = (v) => { if (leftIsX1) shape.x2 = v; else shape.x1 = v; };
-    const setTop = (v) => { if (topIsY1) shape.y1 = v; else shape.y2 = v; };
-    const setBottom = (v) => { if (topIsY1) shape.y2 = v; else shape.y1 = v; };
-
-    if (handleId === 'nw' || handleId === 'sw') setLeft(x); else setRight(x);
-    if (handleId === 'nw' || handleId === 'ne') setTop(y); else setBottom(y);
+    if (handleId === 'p1') { shape.x1 = x; shape.y1 = y; }
+    else if (handleId === 'p2') { shape.x2 = x; shape.y2 = y; }
   }
 
   // Put a box shape's coords back in x1<=x2, y1<=y2 form after a drag that
@@ -709,6 +700,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           x1: selectedShape.x1, y1: selectedShape.y1,
           x2: selectedShape.x2, y2: selectedShape.y2
         };
+        // Box handles: pin the opposite corner NOW. Deriving it per
+        // mousemove re-inspects the (mutating) coords, so once the pointer
+        // crossed the opposite edge the formerly fixed corner would start
+        // moving too and the shape would jump.
+        if (['nw', 'ne', 'se', 'sw'].includes(handle.id)) {
+          const b = getShapeBBox(selectedShape);
+          resizeAnchor = {
+            nw: { x: b.x2, y: b.y2 }, ne: { x: b.x1, y: b.y2 },
+            se: { x: b.x1, y: b.y1 }, sw: { x: b.x2, y: b.y1 }
+          }[handle.id];
+        } else {
+          resizeAnchor = null;
+        }
         return;
       }
 
@@ -874,7 +878,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('mousemove', (e) => {
     if (!resizingHandleId || !selectedShape) return;
     const coords = getBackingCoords(e.clientX, e.clientY);
-    moveHandleTo(selectedShape, resizingHandleId, coords.x, coords.y);
+    if (resizeAnchor) {
+      // Box resize: fixed corner stays pinned, dragged corner follows the
+      // pointer. Coords may be inverted mid-drag; normalized on mouseup.
+      selectedShape.x1 = resizeAnchor.x;
+      selectedShape.y1 = resizeAnchor.y;
+      selectedShape.x2 = coords.x;
+      selectedShape.y2 = coords.y;
+    } else {
+      moveHandleTo(selectedShape, resizingHandleId, coords.x, coords.y);
+    }
     drawEverything();
   });
 
@@ -884,6 +897,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const prev = resizePrevCoords;
     resizingHandleId = null;
     resizePrevCoords = null;
+    resizeAnchor = null;
     if (!shape || !prev) return;
 
     normalizeBoxCoords(shape);
@@ -894,6 +908,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Its own type (not 'style') so a following restyle can't coalesce
       // into it; undo restores the saved coords either way.
       undoStack.push({ type: 'reshape', shape: shape, prev: prev });
+      clearRedoStack();
       updateUndoButton();
     }
     drawEverything();
@@ -994,6 +1009,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Preview the chosen family/weight so wrap points match the rendered shape.
     ta.style.fontFamily = editFontFamily;
     ta.style.fontWeight = fontWeightForFamily(editFontFamily);
+    // Live-preview the shadow too (mirrors the canvas 1.5px offset pass)
+    ta.style.textShadow = editShadow ? '1.5px 1.5px rgba(0, 0, 0, 0.5)' : 'none';
     if (sourceShape) ta.value = sourceShape.text;
 
     // Position text area beautifully on top of wrapper, matching canvas bounding rect
@@ -1196,6 +1213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       isDraggingShape = false;
       resizingHandleId = null;
       resizePrevCoords = null;
+      resizeAnchor = null;
       canvas.style.cursor = '';
 
       updatePropertyPanelsVisibility();
@@ -1313,6 +1331,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         customColorHex.classList.remove('invalid');
       }
     });
+    // 'change' fires when the picker closes: the drag gesture is over, so
+    // the next picker use starts a fresh undo entry.
+    customColorPicker.addEventListener('change', endStyleGesture);
   }
 
   // Custom color: hex text input, validated on Enter/change
@@ -1351,6 +1372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const MY_COLORS_KEY = 'snippyMyColors';
   const MY_COLORS_MAX = 6;
   let myColors = [];
+  let myColorsLoaded = false; // Gate mutations until the stored set arrives
 
   function persistMyColors() {
     chrome.storage.local.set({ [MY_COLORS_KEY]: myColors });
@@ -1377,10 +1399,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // The selected fill color was just removed from My Colors: fall back to
-    // "Match Stroke" so the panel never shows an empty selection.
+    // "Match Stroke" so the panel never shows an empty selection. UI state
+    // only — going through activateFillSwatch here would restyle whatever
+    // shape happens to be selected as a side effect of a palette removal.
     if (previousColor && !myColors.includes(previousColor)) {
       const matchStroke = fillPalette.querySelector('.fill-swatch.match-stroke');
-      if (matchStroke) activateFillSwatch(matchStroke);
+      if (matchStroke) {
+        document.querySelectorAll('.fill-swatch.active')
+          .forEach(s => s.classList.remove('active'));
+        matchStroke.classList.add('active');
+        activeFillColor = null;
+      }
     }
   }
 
@@ -1420,11 +1449,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderMyColorFills();
   }
 
-  // Saves whatever color is currently active (preset swatch, picker, or hex)
-  // into the next free slot. Once all six are full the oldest entry is
+  // Saves the color the panel is currently DISPLAYING into the next free
+  // slot: the selected shape's color when one is selected (the panel shows
+  // that, not activeColor, which still holds the for-new-shapes value), the
+  // active color otherwise. Once all six are full the oldest entry is
   // dropped (FIFO) so "+" always succeeds.
   function saveCurrentColor() {
-    const color = normalizeHex(activeColor).toLowerCase();
+    if (!myColorsLoaded) return; // Don't clobber storage before the load lands
+    const sel = (activeTool === 'select' && selectedShape &&
+                 shapes.includes(selectedShape) &&
+                 styleAppliesTo(selectedShape, 'color'))
+      ? selectedShape.color : activeColor;
+    const color = normalizeHex(sel).toLowerCase();
     if (!HEX_COLOR_RE.test(color)) return;
 
     if (myColors.includes(color)) {
@@ -1440,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function removeMyColor(color) {
+    if (!myColorsLoaded) return;
     const index = myColors.indexOf(color);
     if (index === -1) return;
 
@@ -1460,6 +1497,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       console.error('Failed to load My Colors:', err);
     }
+    // Mutations are gated on this so a fast save can't overwrite storage
+    // with the empty pre-load array (or be clobbered by the load landing).
+    myColorsLoaded = true;
     renderMyColors();
   }
 
@@ -1528,6 +1568,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     fontSizeInput.addEventListener('input', () => applyFontSizeInput(false));
     fontSizeInput.addEventListener('change', () => applyFontSizeInput(true));
+    // Leaving the field (change fires on commit/blur) ends the typing
+    // burst; the next edit gets its own undo entry.
+    fontSizeInput.addEventListener('change', endStyleGesture);
   }
 
   // Font family picker: updates state and previews on the active textarea.
@@ -1556,6 +1599,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeTextShadow = e.target.checked;
       if (activeTextarea) {
         activeTextarea.shadow = activeTextShadow;
+        activeTextarea.element.style.textShadow =
+          activeTextShadow ? '1.5px 1.5px rgba(0, 0, 0, 0.5)' : 'none';
       }
       applyStyleToSelection({ shadow: activeTextShadow });
     });
@@ -1599,11 +1644,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return false;
   }
 
+  // Continuous controls (number input, native color picker) coalesce their
+  // per-event style entries into one undo step — but only within a single
+  // gesture. Each control ends its gesture (on change/blur) by bumping this
+  // token, so a NEW drag or typing burst never folds into an old entry and
+  // Undo can't revert two unrelated edits at once.
+  let styleGestureId = 0;
+  function endStyleGesture() {
+    styleGestureId++;
+  }
+
   // Restyle the current selection in place. `props` uses panel-level values;
   // properties the shape type ignores are dropped. Undoable as one
   // {type:'style'} entry. Pass coalesce=true for controls that fire
-  // continuously (number input, native color picker) so a single gesture
-  // doesn't bury the undo stack in one-pixel steps.
+  // continuously so a single gesture doesn't bury the undo stack in
+  // one-pixel steps (see styleGestureId above for the gesture bounds).
   function applyStyleToSelection(props, coalesce) {
     if (activeTool !== 'select') return;
     if (!selectedShape || !shapes.includes(selectedShape)) return;
@@ -1630,13 +1685,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const top = undoStack[undoStack.length - 1];
-    if (coalesce && top && top.type === 'style' && top.shape === shape) {
+    if (coalesce && top && top.type === 'style' && top.shape === shape &&
+        top.gesture === styleGestureId) {
       // Fold into the in-progress gesture, keeping the oldest value per key.
       for (const key of Object.keys(prev)) {
         if (!(key in top.prev)) top.prev[key] = prev[key];
       }
     } else {
-      undoStack.push({ type: 'style', shape: shape, prev: prev });
+      undoStack.push({
+        type: 'style', shape: shape, prev: prev,
+        gesture: coalesce ? styleGestureId : null
+      });
+      clearRedoStack();
       updateUndoButton();
     }
 
@@ -1661,6 +1721,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (HEX_COLOR_RE.test(String(color))) {
         customColorPicker.value = normalizeHex(String(color));
       }
+    }
+    // Keep the hex field honest: show the custom color when the picker is
+    // what's active, clear the stale text when a swatch matched instead.
+    if (customColorHex) {
+      customColorHex.value =
+        (!matched && HEX_COLOR_RE.test(String(color))) ? normalizeHex(String(color)) : '';
+      customColorHex.classList.remove('invalid');
     }
   }
 
@@ -1824,6 +1891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     else if (entry.type === 'clear') {
       shapes = [];
+      setSelection(null); // The selected shape (if any) was just wiped
     }
 
     // Re-push onto undoStack so it can be undone again.
@@ -2611,8 +2679,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ==========================================
   
   window.addEventListener('keydown', (e) => {
-    // If typing in textarea, don't trigger shortcuts
-    if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
+    // Don't trigger shortcuts while typing in any form control — Delete in
+    // the hex field or font-size input must edit text, not annotations.
+    const el = document.activeElement;
+    if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ||
+               el.tagName === 'SELECT' || el.isContentEditable)) {
       return;
     }
 
@@ -2648,6 +2719,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     else if (e.key === 'Escape') {
       if (selectedShape) {
+        // A reshape or move may be mid-gesture: revert it first, otherwise
+        // clearing the selection strands a mutation no undo entry records.
+        if (resizingHandleId && resizePrevCoords) {
+          Object.assign(selectedShape, resizePrevCoords);
+        }
+        if (isDraggingShape && (dragTotalDX !== 0 || dragTotalDY !== 0)) {
+          translateShape(selectedShape, -dragTotalDX, -dragTotalDY);
+        }
+        resizingHandleId = null;
+        resizePrevCoords = null;
+        resizeAnchor = null;
+        isDraggingShape = false;
+        dragTotalDX = 0;
+        dragTotalDY = 0;
         // First Escape just clears the selection
         setSelection(null);
         drawEverything();
