@@ -610,6 +610,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         dragLastY = sc.y;
         dragTotalDX = 0;
         dragTotalDY = 0;
+        if (hit.type === 'text') maybeShowTextEditHint();
       } else {
         selectedShape = null;
       }
@@ -787,11 +788,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     dragTotalDY = 0;
   });
 
-  // Cursor feedback: 'move' when hovering a shape in Select mode
+  // Cursor feedback in Select mode: 'text' over a text shape (hints it can be
+  // double-clicked to edit), 'move' over any other shape.
   canvas.addEventListener('mousemove', (e) => {
     if (activeTool !== 'select' || isDraggingShape) return;
     const coords = getBackingCoords(e.clientX, e.clientY);
-    canvas.style.cursor = getShapeAt(coords.x, coords.y) ? 'move' : 'default';
+    const hit = getShapeAt(coords.x, coords.y);
+    canvas.style.cursor = hit ? (hit.type === 'text' ? 'text' : 'move') : 'default';
   });
 
   // Double-click a text shape to re-open it for editing. Works regardless of
@@ -1744,6 +1747,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     toastTimeout = setTimeout(() => {
       toast.classList.remove('show');
     }, 3000);
+  }
+
+  // One-time discoverability nudge: the first time a user selects a text
+  // shape, remind them double-click reopens it for editing. Persisted in
+  // localStorage (editor-page-local, no cross-context sync needed) so it
+  // only ever shows once per browser profile.
+  const TEXT_EDIT_HINT_KEY = 'snippy_textEditHintShown';
+  function maybeShowTextEditHint() {
+    try {
+      if (localStorage.getItem(TEXT_EDIT_HINT_KEY)) return;
+      localStorage.setItem(TEXT_EDIT_HINT_KEY, '1');
+    } catch (e) {
+      // Storage unavailable (e.g. private mode) — show the hint anyway,
+      // just without persistence across sessions.
+    }
+    showToast('Double-click text to edit');
   }
 
   // ==========================================
