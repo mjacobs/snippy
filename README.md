@@ -15,7 +15,7 @@ own Google Gemini key.
 
 ## Features
 
-- **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout.
+- **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout. Press <kbd>Enter</kbd> instead of dragging to capture the whole visible page, or skip the overlay entirely with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> on Mac) for a one-click full-tab capture straight to the editor.
 - **Full annotation set** — freehand pen, arrows, rectangles (outline or filled), neon highlighter, text with a drop shadow, and a **pixelate/blur** tool for redacting sensitive info.
 - **Undo & restore** — undo the last edit (<kbd>Ctrl</kbd>+<kbd>Z</kbd>), or clear everything and restore it with one undo.
 - **Export** — copy the annotated result straight to your clipboard, or download a high-quality JPEG (white-matted so nothing goes transparent).
