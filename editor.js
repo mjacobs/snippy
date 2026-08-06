@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fontSizeButtons = document.querySelectorAll('.font-size-btn');
   const fontSizeInput = document.getElementById('font-size-input');
   const fontFamilySelect = document.getElementById('font-family-select');
+  const textShadowCheckbox = document.getElementById('text-shadow-checkbox');
 
   // Toast
   const toast = document.getElementById('toast');
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeFontSize = 24; // Medium
   const DEFAULT_FONT_FAMILY = "'Inter', -apple-system, sans-serif";
   let activeFontFamily = DEFAULT_FONT_FAMILY;
+  let activeTextShadow = false; // Drop shadow default-off for new text shapes
   let activeFill = false;
   let activeFillColor = null; // null = match stroke color
   
@@ -201,8 +203,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ctx.restore();
   }
 
-  // Inter/Outfit are bold display faces; serif/mono/cursive read better at
-  // normal weight, so pick the weight to match the family.
+  // Inter/Outfit are bold display faces; everything else (system sans,
+  // serif/mono/cursive) reads better at normal weight, so pick the weight
+  // to match the family.
   function fontWeightForFamily(family) {
     return /Inter|Outfit/.test(family) ? 'bold' : 'normal';
   }
@@ -366,10 +369,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       let textY = shape.y1;
 
       for (const line of lines) {
-        // Drop shadow for readability
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillText(line, shape.x1 + 1.5, textY + 1.5);
-        
+        // Drop shadow for readability (opt-in per shape, default off)
+        if (shape.shadow) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillText(line, shape.x1 + 1.5, textY + 1.5);
+        }
+
         ctx.fillStyle = shape.color;
         ctx.fillText(line, shape.x1, textY);
         textY += shape.fontSize * 1.25;
@@ -800,6 +805,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // When re-editing an existing text shape, preserve its own color/font size.
     const editColor = sourceShape ? sourceShape.color : activeColor;
     const editFontSize = sourceShape ? sourceShape.fontSize : activeFontSize;
+    // Re-editing restores the shape's own shadow setting; new shapes take
+    // whatever the toggle is currently set to (default off).
+    const editShadow = sourceShape ? !!sourceShape.shadow : activeTextShadow;
+    if (textShadowCheckbox) textShadowCheckbox.checked = editShadow;
 
     // Create standard textarea
     const ta = document.createElement('textarea');
@@ -879,6 +888,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       color: editColor,
       fontSize: editFontSize,
       fontFamily: editFontFamily,
+      shadow: editShadow,
       source: sourceShape || null,
       sourceIndex: (typeof sourceIndex === 'number') ? sourceIndex : null
     };
@@ -935,6 +945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           color: activeTextarea.color,
           fontSize: activeTextarea.fontSize,
           fontFamily: activeTextarea.fontFamily,
+          shadow: activeTextarea.shadow,
           x1: activeTextarea.backingX,
           y1: activeTextarea.backingY,
           width: backingWidth
@@ -945,6 +956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           color: activeColor,
           fontSize: activeFontSize,
           fontFamily: activeFontFamily,
+          shadow: activeTextShadow,
           text: value,
           x1: activeTextarea.backingX,
           y1: activeTextarea.backingY,
@@ -1208,6 +1220,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   fillCheckbox.addEventListener('change', (e) => {
     activeFill = e.target.checked;
   });
+
+  // Text shadow toggle: default off, per-shape, previewed live while editing.
+  if (textShadowCheckbox) {
+    textShadowCheckbox.addEventListener('change', (e) => {
+      activeTextShadow = e.target.checked;
+      if (activeTextarea) {
+        activeTextarea.shadow = activeTextShadow;
+      }
+    });
+  }
 
   // Independent fill color swatches (separate from the stroke color palette)
   fillSwatches.forEach(swatch => {
