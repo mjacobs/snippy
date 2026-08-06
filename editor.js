@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Action buttons
   const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
   const btnClear = document.getElementById('btn-clear');
   const btnCopy = document.getElementById('btn-copy');
   const btnSave = document.getElementById('btn-save');
@@ -78,6 +79,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   //          {type:'move',shape,dx,dy} {type:'replace',oldShape,newShape}
   //          {type:'clear',shapes:[...]}
   let undoStack = [];
+  // Redo history: entries popped off undoStack by Undo, re-applied forward
+  // by Redo. Any new mutation invalidates it (see clearRedoStack below).
+  let redoStack = [];
+
+  // Any new action invalidates the redo trail, since it no longer leads
+  // back to a state Redo can reconstruct.
+  function clearRedoStack() {
+    redoStack = [];
+    updateRedoButton();
+  }
   
   let activeTool = 'select'; // select, pen, arrow, rect, highlighter, blur, text
   let activeColor = '#ff3b30'; // Red default
@@ -563,6 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (idx !== -1) {
       shapes.splice(idx, 1);
       undoStack.push({ type: 'delete', shape: selectedShape, index: idx });
+      clearRedoStack();
     }
     selectedShape = null;
     updateUndoButton();
@@ -738,6 +750,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isValid) {
       shapes.push(currentShape);
       undoStack.push({ type: 'add', shape: currentShape });
+      clearRedoStack();
       updateUndoButton();
     }
 
@@ -767,6 +780,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Record the whole drag as one undoable move
     if (selectedShape && (dragTotalDX !== 0 || dragTotalDY !== 0)) {
       undoStack.push({ type: 'move', shape: selectedShape, dx: dragTotalDX, dy: dragTotalDY });
+      clearRedoStack();
       updateUndoButton();
     }
     dragTotalDX = 0;
@@ -971,10 +985,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         shapes.push(shape);
         undoStack.push({ type: 'add', shape: shape });
       }
+      clearRedoStack();
       updateUndoButton();
     } else if (src) {
       // Text cleared during a re-edit: leave the original removed (deletion)
       undoStack.push({ type: 'delete', shape: src, index: activeTextarea.sourceIndex || 0 });
+      clearRedoStack();
       updateUndoButton();
     }
 
@@ -1242,11 +1258,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ==========================================
-  // Action Buttons: Undo, Clear, Save, Copy
+  // Action Buttons: Undo, Redo, Clear, Save, Copy
   // ==========================================
 
   function updateUndoButton() {
     btnUndo.disabled = undoStack.length === 0;
+  }
+
+  function updateRedoButton() {
+    btnRedo.disabled = redoStack.length === 0;
   }
 
   // Undo last action (add, delete, move, text re-edit, or full clear)
@@ -1280,7 +1300,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('All annotations restored!');
     }
 
+    // The same entry re-applies forward when Redo is pressed next.
+    redoStack.push(entry);
+
     updateUndoButton();
+    updateRedoButton();
+    drawEverything();
+  });
+
+  // Redo the last undone action, re-applying the original mutation
+  btnRedo.addEventListener('click', () => {
+    if (activeTextarea) {
+      cancelActiveText();
+      return;
+    }
+
+    const entry = redoStack.pop();
+    if (!entry) return;
+
+    if (entry.type === 'add') {
+      shapes.push(entry.shape);
+    }
+    else if (entry.type === 'delete') {
+      const idx = shapes.indexOf(entry.shape);
+      if (idx !== -1) shapes.splice(idx, 1);
+      if (selectedShape === entry.shape) selectedShape = null;
+    }
+    else if (entry.type === 'move') {
+      translateShape(entry.shape, entry.dx, entry.dy);
+    }
+    else if (entry.type === 'replace') {
+      const idx = shapes.indexOf(entry.oldShape);
+      if (idx !== -1) shapes.splice(idx, 1, entry.newShape);
+      if (selectedShape === entry.oldShape) selectedShape = null;
+    }
+    else if (entry.type === 'clear') {
+      shapes = [];
+    }
+
+    // Re-push onto undoStack so it can be undone again.
+    undoStack.push(entry);
+
+    updateUndoButton();
+    updateRedoButton();
     drawEverything();
   });
 
@@ -1292,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (shapes.length === 0) return;
 
     undoStack.push({ type: 'clear', shapes: [...shapes] });
+    clearRedoStack();
     shapes = [];
     selectedShape = null;
 
@@ -2047,10 +2110,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
-    if (ctrlKey && e.key.toLowerCase() === 'z') {
+    if (ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      btnRedo.click();
+    }
+    else if (ctrlKey && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       btnUndo.click();
-    } 
+    }
+    else if (ctrlKey && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      btnRedo.click();
+    }
     else if (ctrlKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
       btnCopy.click();
