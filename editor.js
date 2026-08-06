@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Entries: {type:'add',shape} {type:'delete',shape,index}
   //          {type:'move',shape,dx,dy} {type:'replace',oldShape,newShape}
   //          {type:'style',shape,prev:{prop:oldValue,...}}
+  //          {type:'reshape',shape,prev:{x1,y1,x2,y2}}
   //          {type:'clear',shapes:[...]}
   let undoStack = [];
   // Redo history: entries popped off undoStack by Undo, re-applied forward
@@ -119,6 +120,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let dragLastY = 0;
   let dragTotalDX = 0;        // Accumulated drag delta, recorded for Undo on mouseup
   let dragTotalDY = 0;
+  let resizingHandleId = null; // Handle being dragged to reshape, or null
+  let resizePrevCoords = null; // Pre-drag x1/y1/x2/y2, recorded for Undo
 
   // URL of the page the screenshot was captured from; embedded as image
   // metadata (XMP / PNG iTXt) on export.
@@ -206,7 +209,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Dashed selection rectangle around the selected shape's bounding box
+  // Dashed selection rectangle around the selected shape's bounding box,
+  // plus any reshape handles the shape type supports. This is selection
+  // chrome only: exports run through withSelectionSuppressed, which clears
+  // selectedShape and redraws, so none of it reaches the saved image.
   function drawSelectionOutline(shape) {
     const b = getShapeBBox(shape);
     const pad = 4;
@@ -215,6 +221,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.strokeRect(b.x1 - pad, b.y1 - pad, (b.x2 - b.x1) + pad * 2, (b.y2 - b.y1) + pad * 2);
+    ctx.restore();
+
+    const r = handleRadius();
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineWidth = Math.max(1, r * 0.35);
+    ctx.strokeStyle = '#007aff';
+    ctx.fillStyle = '#ffffff';
+    for (const h of getHandles(shape)) {
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -571,6 +591,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ==========================================
+  // Select Tool: Reshape Handles
+  // ==========================================
+
+  // Handles are drawn in backing coords but should stay a constant size on
+  // screen, so scale the radius by however much the canvas is displayed down
+  // (or up) from its backing resolution.
+  function handleRadius() {
+    const rect = canvas.getBoundingClientRect();
+    const scale = rect.width > 0 ? canvas.width / rect.width : 1;
+    return Math.max(4, 6 * scale);
+  }
+
+  // Reshape handles for a shape, in draw order: endpoints for arrows/lines,
+  // corners for the box-shaped types. Pen/highlighter strokes and text are
+  // move-only and return none.
+  function getHandles(shape) {
+    if (shape.type === 'arrow' || shape.type === 'line') {
+      return [
+        { id: 'p1', x: shape.x1, y: shape.y1, cursor: 'grab' },
+        { id: 'p2', x: shape.x2, y: shape.y2, cursor: 'grab' }
+      ];
+    }
+    if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'blur') {
+      const b = getShapeBBox(shape);
+      return [
+        { id: 'nw', x: b.x1, y: b.y1, cursor: 'nwse-resize' },
+        { id: 'ne', x: b.x2, y: b.y1, cursor: 'nesw-resize' },
+        { id: 'se', x: b.x2, y: b.y2, cursor: 'nwse-resize' },
+        { id: 'sw', x: b.x1, y: b.y2, cursor: 'nesw-resize' }
+      ];
+    }
+    return [];
+  }
+
+  // Handle under the point on the currently selected shape, or null. Handles
+  // win over the shape body, so a corner grab resizes rather than moves.
+  function getHandleAt(x, y) {
+    if (activeTool !== 'select') return null;
+    if (!selectedShape || !shapes.includes(selectedShape)) return null;
+    const r = handleRadius() + 3;
+    for (const h of getHandles(selectedShape)) {
+      if (Math.hypot(x - h.x, y - h.y) <= r) return h;
+    }
+    return null;
+  }
+
+  // Rewrite the shape's coords so the dragged handle sits at (x, y). Box
+  // types keep the opposite corner pinned; endpoints just follow the pointer.
+  function moveHandleTo(shape, handleId, x, y) {
+    if (handleId === 'p1') { shape.x1 = x; shape.y1 = y; return; }
+    if (handleId === 'p2') { shape.x2 = x; shape.y2 = y; return; }
+
+    // Box handles are named against the normalized box, so map each one onto
+    // whichever stored field currently holds that edge.
+    const leftIsX1 = shape.x1 <= shape.x2;
+    const topIsY1 = shape.y1 <= shape.y2;
+    const setLeft = (v) => { if (leftIsX1) shape.x1 = v; else shape.x2 = v; };
+    const setRight = (v) => { if (leftIsX1) shape.x2 = v; else shape.x1 = v; };
+    const setTop = (v) => { if (topIsY1) shape.y1 = v; else shape.y2 = v; };
+    const setBottom = (v) => { if (topIsY1) shape.y2 = v; else shape.y1 = v; };
+
+    if (handleId === 'nw' || handleId === 'sw') setLeft(x); else setRight(x);
+    if (handleId === 'nw' || handleId === 'ne') setTop(y); else setBottom(y);
+  }
+
+  // Put a box shape's coords back in x1<=x2, y1<=y2 form after a drag that
+  // may have pulled a handle past the opposite edge.
+  function normalizeBoxCoords(shape) {
+    if (typeof shape.x1 !== 'number' || typeof shape.x2 !== 'number') return;
+    if (shape.type === 'arrow' || shape.type === 'line') return; // Direction matters
+    if (shape.x1 > shape.x2) { const t = shape.x1; shape.x1 = shape.x2; shape.x2 = t; }
+    if (shape.y1 > shape.y2) { const t = shape.y1; shape.y1 = shape.y2; shape.y2 = t; }
+  }
+
   // Remove the selected shape (Delete/Backspace); undoable
   function deleteSelectedShape() {
     if (!selectedShape) return;
@@ -606,6 +701,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activeTool === 'select') {
       // Select the topmost shape under the cursor, or deselect on empty canvas.
       const sc = getBackingCoords(e.clientX, e.clientY);
+      // A handle on the current selection wins over the shape body.
+      const handle = getHandleAt(sc.x, sc.y);
+      if (handle) {
+        resizingHandleId = handle.id;
+        resizePrevCoords = {
+          x1: selectedShape.x1, y1: selectedShape.y1,
+          x2: selectedShape.x2, y2: selectedShape.y2
+        };
+        return;
+      }
+
       const hit = getShapeAt(sc.x, sc.y);
       if (hit) {
         setSelection(hit);
@@ -763,6 +869,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     drawEverything();
   });
 
+  // Select-tool reshape drag (handles), kept ahead of drag-to-move so the
+  // two never run for the same gesture.
+  window.addEventListener('mousemove', (e) => {
+    if (!resizingHandleId || !selectedShape) return;
+    const coords = getBackingCoords(e.clientX, e.clientY);
+    moveHandleTo(selectedShape, resizingHandleId, coords.x, coords.y);
+    drawEverything();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!resizingHandleId) return;
+    const shape = selectedShape;
+    const prev = resizePrevCoords;
+    resizingHandleId = null;
+    resizePrevCoords = null;
+    if (!shape || !prev) return;
+
+    normalizeBoxCoords(shape);
+
+    const moved = shape.x1 !== prev.x1 || shape.y1 !== prev.y1 ||
+                  shape.x2 !== prev.x2 || shape.y2 !== prev.y2;
+    if (moved) {
+      // Its own type (not 'style') so a following restyle can't coalesce
+      // into it; undo restores the saved coords either way.
+      undoStack.push({ type: 'reshape', shape: shape, prev: prev });
+      updateUndoButton();
+    }
+    drawEverything();
+  });
+
   // Select-tool drag-to-move (kept separate from the drawing path above)
   window.addEventListener('mousemove', (e) => {
     if (!isDraggingShape || !selectedShape) return;
@@ -792,11 +928,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     dragTotalDY = 0;
   });
 
-  // Cursor feedback in Select mode: 'text' over a text shape (hints it can be
-  // double-clicked to edit), 'move' over any other shape.
+  // Cursor feedback in Select mode: a resize cursor over a reshape handle,
+  // 'text' over a text shape (hints it can be double-clicked to edit),
+  // 'move' over any other shape body.
   canvas.addEventListener('mousemove', (e) => {
-    if (activeTool !== 'select' || isDraggingShape) return;
+    if (activeTool !== 'select' || isDraggingShape || resizingHandleId) return;
     const coords = getBackingCoords(e.clientX, e.clientY);
+    const handle = getHandleAt(coords.x, coords.y);
+    if (handle) {
+      canvas.style.cursor = handle.cursor;
+      return;
+    }
     const hit = getShapeAt(coords.x, coords.y);
     canvas.style.cursor = hit ? (hit.type === 'text' ? 'text' : 'move') : 'default';
   });
@@ -1052,6 +1194,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Switching tools clears the selection and any hover cursor
       selectedShape = null;
       isDraggingShape = false;
+      resizingHandleId = null;
+      resizePrevCoords = null;
       canvas.style.cursor = '';
 
       updatePropertyPanelsVisibility();
@@ -1619,7 +1763,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (idx !== -1) shapes.splice(idx, 1, entry.oldShape);
       if (selectedShape === entry.newShape) selectedShape = null;
     }
-    else if (entry.type === 'style') {
+    else if (entry.type === 'style' || entry.type === 'reshape') {
       // Swap current values into the entry so Redo can re-apply them; the
       // entry toggles between the two states on each undo/redo pass.
       const cur = {};
@@ -1670,7 +1814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (idx !== -1) shapes.splice(idx, 1, entry.newShape);
       if (selectedShape === entry.oldShape) selectedShape = null;
     }
-    else if (entry.type === 'style') {
+    else if (entry.type === 'style' || entry.type === 'reshape') {
       // Same swap as in Undo: re-apply the stored values, keep the ones
       // being replaced so the next Undo can restore them.
       const cur = {};
