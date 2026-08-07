@@ -17,8 +17,35 @@ export function textBoxResizeHandle(shape, layout) {
   };
 }
 
+export function wrapTextToWidth(text, maxWidth, measureText) {
+  const tokens = text.match(/ +|[^ ]+/g) || [''];
+  const lines = [];
+  let current = '';
+  let hasWord = false;
+
+  for (const token of tokens) {
+    if (/^ +$/.test(token)) {
+      current += token;
+      continue;
+    }
+
+    const candidate = current + token;
+    if (!hasWord || measureText(candidate).width <= maxWidth) {
+      current = candidate;
+      hasWord = true;
+    } else {
+      lines.push(current.replace(/ +$/, ''));
+      current = token;
+      hasWord = true;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
 globalThis.SnippyEditorGeometry = {
   effectiveTextBoxWidth,
   resizedTextBoxWidth,
-  textBoxResizeHandle
+  textBoxResizeHandle,
+  wrapTextToWidth
 };

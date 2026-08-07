@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Snippy",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "minimum_chrome_version": "116",
   "description": "A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.",
   "permissions": [
@@ -17,7 +17,8 @@
     "https://*.googleapis.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_icon": {

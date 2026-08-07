@@ -1,5 +1,7 @@
 // Snippy background service worker
 
+import { storeCaptureAndOpenEditor } from './capture-workflow.mjs';
+
 function isRestrictedTab(tab) {
   return Boolean(tab && tab.url && (
     tab.url.startsWith('chrome://') ||
@@ -12,12 +14,13 @@ function isRestrictedTab(tab) {
 // Shared with the 'capture_completed' message handler below: stash the image
 // (plus the page it came from, for export metadata) and open the editor tab.
 async function storeScreenshotAndOpenEditor(dataUrl, sourceUrl) {
-  await chrome.storage.local.set({
-    activeScreenshot: dataUrl,
-    screenshotTimestamp: Date.now(),
-    sourceUrl: sourceUrl || ''
-  });
-  await chrome.tabs.create({ url: chrome.runtime.getURL('editor.html') });
+  await storeCaptureAndOpenEditor({
+    storage: chrome.storage.local,
+    tabs: chrome.tabs,
+    getUrl: path => chrome.runtime.getURL(path),
+    randomUUID: () => crypto.randomUUID(),
+    now: () => Date.now()
+  }, dataUrl, sourceUrl);
 }
 
 // Full Capture command: grabs the whole visible tab and sends it straight to

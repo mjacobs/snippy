@@ -29,6 +29,8 @@ FILES=(
   editor.html
   editor.js
   editor-geometry.mjs
+  editor-behavior.mjs
+  capture-workflow.mjs
   editor.css
   LICENSE
   README.md

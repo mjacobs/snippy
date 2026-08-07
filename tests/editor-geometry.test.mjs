@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   effectiveTextBoxWidth,
   resizedTextBoxWidth,
-  textBoxResizeHandle
+  textBoxResizeHandle,
+  wrapTextToWidth
 } from '../editor-geometry.mjs';
 
 test('uses a stored wrap width instead of the measured ink width', () => {

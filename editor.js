@@ -4,8 +4,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const {
     effectiveTextBoxWidth,
     resizedTextBoxWidth,
-    textBoxResizeHandle
+    textBoxResizeHandle,
+    wrapTextToWidth: wrapTextToMeasuredWidth
   } = globalThis.SnippyEditorGeometry;
+  const {
+    createPersistentOnce,
+    isHighlighterContext,
+    resizeTextareaToContent,
+    strokeWidthForTool,
+    toolActionForTextHit
+  } = globalThis.SnippyEditorBehavior;
+  const { consumeCapture } = globalThis.SnippyCaptureWorkflow;
 
   // Elements
   const canvas = document.getElementById('editor-canvas');
@@ -104,6 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeTool = 'select'; // select, pen, arrow, rect, highlighter, blur, text
   let activeColor = '#ff3b30'; // Red default
   let activeLineWidth = 3; // Thin
+  let activeHighlighterLineWidth = 18; // Legacy default; panel Medium (6) × 3
   let activeFontSize = 24; // Medium
   const DEFAULT_FONT_FAMILY = "'Inter', -apple-system, sans-serif";
   let activeFontFamily = DEFAULT_FONT_FAMILY;
@@ -118,6 +128,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentY = 0;
   let currentShape = null;
   let activeTextarea = null;
+  let doubleClickCandidate = null;
+  let toastTimeout = null;
 
   // Select tool state
   let selectedShape = null;   // Reference to the currently selected shape (or null)
@@ -155,16 +167,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 1. Load active screenshot from storage
   try {
-    const data = await chrome.storage.local.get(['activeScreenshot', 'sourceUrl']);
-    if (data && data.sourceUrl) {
-      sourceUrl = sanitizeSourceUrl(data.sourceUrl);
+    const capture = await consumeCapture(chrome.storage.local, globalThis.location.search);
+    if (capture && capture.sourceUrl) {
+      sourceUrl = sanitizeSourceUrl(capture.sourceUrl);
     }
-    if (data && data.activeScreenshot) {
+    if (capture && capture.dataUrl) {
       bgImage = new Image();
       bgImage.onload = () => {
         setupCanvas();
       };
-      bgImage.src = data.activeScreenshot;
+      bgImage.src = capture.dataUrl;
     } else {
       showToast('No screenshot found. Draw a crop box on a webpage first!');
     }
@@ -261,21 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // using the currently-set ctx.font. Words that individually exceed maxWidth
   // are allowed to overflow rather than being split mid-word.
   function wrapTextToWidth(text, maxWidth) {
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word;
-      if (!current || ctx.measureText(candidate).width <= maxWidth) {
-        current = candidate;
-      } else {
-        lines.push(current);
-        current = word;
-      }
-    }
-    lines.push(current);
-    return lines;
+    return wrapTextToMeasuredWidth(text, maxWidth, value => ctx.measureText(value));
   }
 
   function getTextLayout(shape) {
@@ -594,6 +592,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null;
   }
 
+  // Text lookup deliberately ignores any transient drawing that may sit on
+  // top of the text during the two clicks of a double-click gesture.
+  function getTextShapeAt(x, y) {
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      if (shapes[i].type === 'text' && hitTestShape(shapes[i], x, y)) {
+        return shapes[i];
+      }
+    }
+    return null;
+  }
+
   // Translate whichever coordinate fields the shape carries by (dx, dy)
   function translateShape(shape, dx, dy) {
     if (typeof shape.x1 === 'number') { shape.x1 += dx; shape.y1 += dy; }
@@ -702,13 +711,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const pointer = getBackingCoords(e.clientX, e.clientY);
+    const textHit = getTextShapeAt(pointer.x, pointer.y);
+    const textHitPolicy = toolActionForTextHit(activeTool, e.detail, !!textHit);
+    if (textHitPolicy === 'suppress') {
+      // Reserve clicks on existing text for the dblclick handler. This keeps
+      // Text from placing a textarea over the second click and prevents other
+      // drawing tools from starting a second annotation in the sequence.
+      return;
+    }
+    if (textHitPolicy === 'track') {
+      doubleClickCandidate = {
+        target: textHit,
+        artifact: null,
+        redoStack: [...redoStack],
+        startedAt: Date.now()
+      };
+    } else if (e.detail <= 1) {
+      doubleClickCandidate = null;
+    }
+
     if (activeTool === 'ai-lens') {
       return; // AI Lens has no canvas drawing behavior
     }
 
     if (activeTool === 'select') {
       // Select the topmost shape under the cursor, or deselect on empty canvas.
-      const sc = getBackingCoords(e.clientX, e.clientY);
+      const sc = pointer;
       // A handle on the current selection wins over the shape body.
       const handle = getHandleAt(sc.x, sc.y);
       if (handle) {
@@ -756,7 +785,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Any new drawing action clears the current selection.
     setSelection(null);
 
-    const coords = getBackingCoords(e.clientX, e.clientY);
+    const coords = pointer;
     startX = coords.x;
     startY = coords.y;
     currentX = coords.x;
@@ -778,7 +807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // scaled up 3x so its brush stays visibly broader than the pen's at
       // every setting (Medium/6 preserves the old fixed 18px look).
       const resolvedLineWidth = activeTool === 'highlighter'
-        ? activeLineWidth * 3
+        ? activeHighlighterLineWidth
         : activeLineWidth;
       currentShape = {
         type: activeTool,
@@ -886,6 +915,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isValid) {
       shapes.push(currentShape);
       undoStack.push({ type: 'add', shape: currentShape });
+      if (doubleClickCandidate &&
+          Date.now() - doubleClickCandidate.startedAt < 1000) {
+        doubleClickCandidate.artifact = currentShape;
+      }
       clearRedoStack();
       updateUndoButton();
     }
@@ -978,21 +1011,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     canvas.style.cursor = hit ? (hit.type === 'text' ? 'text' : 'move') : 'default';
   });
 
-  // Double-click a text shape to re-open it for editing. Works regardless of
-  // the active tool so the gesture is discoverable outside Select mode too —
-  // a stray click from another tool's mousedown/mouseup either never starts a
-  // shape (text tool: createTextarea early-returns while activeTextarea is
-  // set, and an empty re-committed textarea is simply discarded) or is too
-  // small to pass that tool's own validity threshold, so nothing is left
-  // behind for the dblclick to collide with.
+  // Double-click a text shape to re-open it for editing regardless of the
+  // active tool. The mousedown path reserves the second click; if the first
+  // click produced a small annotation, remove that artifact before hit-testing
+  // the underlying text.
   canvas.addEventListener('dblclick', (e) => {
-    // While another textarea is open, createTextarea would early-return AFTER
-    // we spliced the hit shape out of `shapes` — silently losing it. Bail
-    // before touching anything.
-    if (activeTextarea) return;
+    if (activeTextarea) commitActiveText();
     const coords = getBackingCoords(e.clientX, e.clientY);
-    const hit = getShapeAt(coords.x, coords.y);
-    if (hit && hit.type === 'text') {
+    const hit = getTextShapeAt(coords.x, coords.y);
+    if (hit) {
+      const candidate = doubleClickCandidate;
+      if (candidate && candidate.target === hit && candidate.artifact &&
+          Date.now() - candidate.startedAt < 1000) {
+        const artifactIndex = shapes.indexOf(candidate.artifact);
+        if (artifactIndex !== -1) shapes.splice(artifactIndex, 1);
+        for (let i = undoStack.length - 1; i >= 0; i--) {
+          const entry = undoStack[i];
+          if (entry.type === 'add' && entry.shape === candidate.artifact) {
+            undoStack.splice(i, 1);
+            break;
+          }
+        }
+        redoStack = candidate.redoStack;
+        updateUndoButton();
+        updateRedoButton();
+      }
+      doubleClickCandidate = null;
+      isDrawing = false;
+      currentShape = null;
       const idx = shapes.indexOf(hit);
       if (idx !== -1) shapes.splice(idx, 1);
       setSelection(null);
@@ -1104,16 +1150,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // Auto-expand typing height
-    ta.addEventListener('input', () => {
-      ta.style.height = 'auto';
-      ta.style.height = `${ta.scrollHeight}px`;
-    });
+    ta.addEventListener('input', () => resizeTextareaToContent(ta));
+
+    // Native horizontal textarea resizing does not emit an input event.
+    // Watch width changes so wrapped lines never remain clipped afterward.
+    if (typeof ResizeObserver === 'function') {
+      let lastWidth = ta.getBoundingClientRect().width;
+      let resizeFrame = null;
+      const observer = new ResizeObserver(entries => {
+        const width = entries[0] && entries[0].contentRect
+          ? entries[0].contentRect.width
+          : ta.getBoundingClientRect().width;
+        if (width === lastWidth) return;
+        lastWidth = width;
+        if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+        // ResizeObserver delivery cannot safely mutate the observed box.
+        // Move the height adjustment to the next frame to avoid a loop.
+        resizeFrame = requestAnimationFrame(() => {
+          resizeFrame = null;
+          if (ta.isConnected) resizeTextareaToContent(ta);
+        });
+      });
+      observer.observe(ta);
+      activeTextarea.resizeObserver = observer;
+      activeTextarea.cancelPendingResize = () => {
+        if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      };
+    }
 
     // Fit pre-filled multi-line text to its content height
     if (sourceShape) {
-      ta.style.height = 'auto';
-      ta.style.height = `${ta.scrollHeight}px`;
+      resizeTextareaToContent(ta);
+      syncColorControls(editColor);
+      syncFontControls(editFontSize, editFontFamily, editShadow);
     }
+    updatePropertyPanelsVisibility();
 
     // Special shortcuts for committing or canceling text
     ta.addEventListener('keydown', (e) => {
@@ -1166,10 +1237,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         shape = {
           type: 'text',
-          color: activeColor,
-          fontSize: activeFontSize,
-          fontFamily: activeFontFamily,
-          shadow: activeTextShadow,
+          color: activeTextarea.color,
+          fontSize: activeTextarea.fontSize,
+          fontFamily: activeTextarea.fontFamily,
+          shadow: activeTextarea.shadow,
           text: value,
           x1: activeTextarea.backingX,
           y1: activeTextarea.backingY,
@@ -1209,11 +1280,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function cleanupTextarea() {
     if (activeTextarea) {
+      if (activeTextarea.cancelPendingResize) activeTextarea.cancelPendingResize();
+      if (activeTextarea.resizeObserver) activeTextarea.resizeObserver.disconnect();
       if (activeTextarea.element.parentNode) {
         activeTextarea.element.parentNode.removeChild(activeTextarea.element);
       }
       activeTextarea = null;
     }
+    updatePropertyPanelsVisibility();
+    syncPropertyPanelToSelection();
   }
 
   // ==========================================
@@ -1242,6 +1317,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       updatePropertyPanelsVisibility();
       syncPropertyPanelToSelection();
+      if (activeTool === 'highlighter') {
+        syncStrokeControls(Math.round(activeHighlighterLineWidth / 3));
+      }
       drawEverything();
     });
   });
@@ -1254,6 +1332,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     propFill.classList.add('hidden');
     propFont.classList.add('hidden');
     propAiLens.classList.add('hidden');
+
+    if (activeTextarea) {
+      // While text is being edited, the controls describe that textarea,
+      // even though its source shape is temporarily removed from `shapes`.
+      propStroke.classList.add('hidden');
+      propFont.classList.remove('hidden');
+      return;
+    }
 
     if (activeTool === 'select') {
       // With something selected the panel edits that shape, so show exactly
@@ -1305,11 +1391,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Applies the chosen color to the current selection (if any), to the
   // for-new-shapes state, and to any in-progress text edit.
   function applyActiveColor(color, coalesce) {
-    activeColor = color;
-
     if (activeTextarea) {
-      activeTextarea.element.style.color = activeColor;
-      activeTextarea.color = activeColor; // Commit must honor mid-edit changes
+      activeTextarea.element.style.color = color;
+      activeTextarea.color = color; // Commit must honor mid-edit changes
+      if (!activeTextarea.source) activeColor = color;
+    } else {
+      activeColor = color;
     }
 
     applyStyleToSelection({ color: color }, coalesce);
@@ -1330,6 +1417,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     deselectAllColorControls();
     swatch.classList.add('active');
     applyActiveColor(swatch.dataset.color);
+    if (customColorPicker && HEX_COLOR_RE.test(swatch.dataset.color)) {
+      customColorPicker.value = normalizeHex(swatch.dataset.color);
+    }
 
     // Clear any pending custom hex input now that a swatch won out.
     if (customColorHex) {
@@ -1345,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Custom color: native swatch picker
   if (customColorPicker) {
-    customColorPicker.addEventListener('input', () => {
+    const applyPickerColor = () => {
       deselectAllColorControls();
       customColorPicker.classList.add('active');
       applyActiveColor(customColorPicker.value, true); // Fires while dragging
@@ -1354,7 +1444,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         customColorHex.value = customColorPicker.value;
         customColorHex.classList.remove('invalid');
       }
-    });
+    };
+    // Clicking an unchanged picker value still means "use this color"; color
+    // inputs do not reliably emit input/change when the value stays the same.
+    customColorPicker.addEventListener('click', applyPickerColor);
+    customColorPicker.addEventListener('input', applyPickerColor);
     // 'change' fires when the picker closes: the drag gesture is over, so
     // the next picker use starts a fresh undo entry.
     customColorPicker.addEventListener('change', endStyleGesture);
@@ -1470,7 +1564,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       myColorsPalette.appendChild(slot);
     }
 
+    if (previousColor && !myColors.includes(previousColor)) {
+      syncColorControls(displayedStrokeColor());
+    }
+
     renderMyColorFills();
+  }
+
+  function displayedStrokeColor() {
+    if (activeTextarea) return activeTextarea.color;
+    const sel = (activeTool === 'select' && selectedShape &&
+                 shapes.includes(selectedShape) &&
+                 styleAppliesTo(selectedShape, 'color'))
+      ? selectedShape : null;
+    return sel ? sel.color : activeColor;
   }
 
   // Saves the color the panel is currently DISPLAYING into the next free
@@ -1480,11 +1587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // dropped (FIFO) so "+" always succeeds.
   function saveCurrentColor() {
     if (!myColorsLoaded) return; // Don't clobber storage before the load lands
-    const sel = (activeTool === 'select' && selectedShape &&
-                 shapes.includes(selectedShape) &&
-                 styleAppliesTo(selectedShape, 'color'))
-      ? selectedShape.color : activeColor;
-    const color = normalizeHex(sel).toLowerCase();
+    const color = normalizeHex(displayedStrokeColor()).toLowerCase();
     if (!HEX_COLOR_RE.test(color)) return;
 
     if (myColors.includes(color)) {
@@ -1537,8 +1640,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => {
       strokeButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      activeLineWidth = parseInt(btn.dataset.width, 10);
-      applyStyleToSelection({ lineWidth: activeLineWidth });
+      const panelWidth = parseInt(btn.dataset.width, 10);
+      const selected = (selectedShape && shapes.includes(selectedShape))
+        ? selectedShape : null;
+      if (isHighlighterContext(activeTool, selected)) {
+        activeHighlighterLineWidth = strokeWidthForTool('highlighter', panelWidth);
+      } else {
+        activeLineWidth = panelWidth;
+      }
+      applyStyleToSelection({ lineWidth: panelWidth });
     });
   });
 
@@ -1549,9 +1659,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   function rescaleActiveTextarea() {
     if (!activeTextarea) return;
     const canvasRect = canvas.getBoundingClientRect();
-    const displayFontScale = activeFontSize * (canvasRect.width / canvas.width);
+    const displayFontScale = activeTextarea.fontSize * (canvasRect.width / canvas.width);
     activeTextarea.element.style.fontSize = `${displayFontScale}px`;
-    activeTextarea.fontSize = activeFontSize; // Commit must honor mid-edit changes
+    resizeTextareaToContent(activeTextarea.element);
+  }
+
+  function applyTextFontSize(size, coalesce) {
+    if (activeTextarea) {
+      activeTextarea.fontSize = size;
+      if (!activeTextarea.source) activeFontSize = size;
+    } else {
+      activeFontSize = size;
+    }
+    syncFontSizePresets(size);
+    if (fontSizeInput) fontSizeInput.value = size;
+    rescaleActiveTextarea();
+    applyStyleToSelection({ fontSize: size }, coalesce);
   }
 
   // Highlight whichever quick-preset matches the current size (none if custom).
@@ -1564,11 +1687,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Quick preset buttons: fill the numeric input and rescale live text.
   fontSizeButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      activeFontSize = parseInt(btn.dataset.size, 10);
-      syncFontSizePresets(activeFontSize);
-      if (fontSizeInput) fontSizeInput.value = activeFontSize;
-      rescaleActiveTextarea();
-      applyStyleToSelection({ fontSize: activeFontSize });
+      applyTextFontSize(parseInt(btn.dataset.size, 10), false);
     });
   });
 
@@ -1579,15 +1698,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       let size = parseInt(fontSizeInput.value, 10);
       if (isNaN(size)) {
         if (!clampDisplay) return; // mid-typing empty/invalid: wait
-        size = activeFontSize;
+        size = activeTextarea ? activeTextarea.fontSize : activeFontSize;
       }
       size = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
       if (clampDisplay) fontSizeInput.value = size;
-      activeFontSize = size;
-      syncFontSizePresets(size);
-      rescaleActiveTextarea();
       // Typing fires per keystroke, so fold the whole edit into one undo step.
-      applyStyleToSelection({ fontSize: size }, true);
+      applyTextFontSize(size, true);
     };
 
     fontSizeInput.addEventListener('input', () => applyFontSizeInput(false));
@@ -1600,13 +1716,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Font family picker: updates state and previews on the active textarea.
   if (fontFamilySelect) {
     fontFamilySelect.addEventListener('change', () => {
-      activeFontFamily = fontFamilySelect.value;
+      const family = fontFamilySelect.value;
       if (activeTextarea) {
-        activeTextarea.element.style.fontFamily = activeFontFamily;
-        activeTextarea.element.style.fontWeight = fontWeightForFamily(activeFontFamily);
-        activeTextarea.fontFamily = activeFontFamily; // Commit must honor mid-edit changes
+        activeTextarea.element.style.fontFamily = family;
+        activeTextarea.element.style.fontWeight = fontWeightForFamily(family);
+        activeTextarea.fontFamily = family; // Commit must honor mid-edit changes
+        if (!activeTextarea.source) activeFontFamily = family;
+        resizeTextareaToContent(activeTextarea.element);
+      } else {
+        activeFontFamily = family;
       }
-      applyStyleToSelection({ fontFamily: activeFontFamily });
+      applyStyleToSelection({ fontFamily: family });
     });
   }
 
@@ -1620,13 +1740,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Also restyles a selected text shape, like the other panel controls.
   if (textShadowCheckbox) {
     textShadowCheckbox.addEventListener('change', (e) => {
-      activeTextShadow = e.target.checked;
+      const shadow = e.target.checked;
       if (activeTextarea) {
-        activeTextarea.shadow = activeTextShadow;
+        activeTextarea.shadow = shadow;
         activeTextarea.element.style.textShadow =
-          activeTextShadow ? '1.5px 1.5px rgba(0, 0, 0, 0.5)' : 'none';
+          shadow ? '1.5px 1.5px rgba(0, 0, 0, 0.5)' : 'none';
+        if (!activeTextarea.source) activeTextShadow = shadow;
+      } else {
+        activeTextShadow = shadow;
       }
-      applyStyleToSelection({ shadow: activeTextShadow });
+      applyStyleToSelection({ shadow });
     });
   }
 
@@ -1748,11 +1871,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         matched = true;
       }
     });
+    if (customColorPicker && HEX_COLOR_RE.test(String(color))) {
+      customColorPicker.value = normalizeHex(String(color));
+    }
     if (!matched && customColorPicker) {
       customColorPicker.classList.add('active');
-      if (HEX_COLOR_RE.test(String(color))) {
-        customColorPicker.value = normalizeHex(String(color));
-      }
     }
     // Keep the hex field honest: show the custom color when the picker is
     // what's active, clear the stale text when a swatch matched instead.
@@ -1796,7 +1919,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!sel) {
       syncColorControls(activeColor);
-      syncStrokeControls(activeLineWidth);
+      const panelWidth = activeTool === 'highlighter'
+        ? Math.round(activeHighlighterLineWidth / 3)
+        : activeLineWidth;
+      syncStrokeControls(panelWidth);
       syncFillControls(activeFill, activeFillColor);
       syncFontControls(activeFontSize, activeFontFamily, activeTextShadow);
       return;
@@ -2321,7 +2447,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Helper Utility: Elegant Toast Notification
   // ==========================================
   
-  let toastTimeout = null;
   function showToast(message) {
     if (toastTimeout) {
       clearTimeout(toastTimeout);
@@ -2339,14 +2464,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // localStorage (editor-page-local, no cross-context sync needed) so it
   // only ever shows once per browser profile.
   const TEXT_EDIT_HINT_KEY = 'snippy_textEditHintShown';
+  const shouldShowTextEditHint = createPersistentOnce(localStorage, TEXT_EDIT_HINT_KEY);
   function maybeShowTextEditHint() {
-    try {
-      if (localStorage.getItem(TEXT_EDIT_HINT_KEY)) return;
-      localStorage.setItem(TEXT_EDIT_HINT_KEY, '1');
-    } catch (e) {
-      // Storage unavailable (e.g. private mode) — show the hint anyway,
-      // just without persistence across sessions.
-    }
+    if (!shouldShowTextEditHint()) return;
     showToast('Double-click text to edit');
   }
 

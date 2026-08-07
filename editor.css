@@ -891,7 +891,6 @@ button {
   resize: horizontal;
   overflow: hidden;
   white-space: pre-wrap;
-  word-break: break-word;
   min-width: 60px;
   padding: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
@@ -1201,4 +1200,3 @@ button {
   from { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
   to { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); }
 }
-
