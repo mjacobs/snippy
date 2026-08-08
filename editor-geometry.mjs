@@ -42,10 +42,3 @@ export function wrapTextToWidth(text, maxWidth, measureText) {
   lines.push(current);
   return lines;
 }
-
-globalThis.SnippyEditorGeometry = {
-  effectiveTextBoxWidth,
-  resizedTextBoxWidth,
-  textBoxResizeHandle,
-  wrapTextToWidth
-};

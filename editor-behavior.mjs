@@ -42,11 +42,3 @@ export function isHighlighterContext(activeTool, selectedShape) {
   return activeTool === 'highlighter' ||
     (activeTool === 'select' && selectedShape && selectedShape.type === 'highlighter');
 }
-
-globalThis.SnippyEditorBehavior = {
-  createPersistentOnce,
-  isHighlighterContext,
-  resizeTextareaToContent,
-  strokeWidthForTool,
-  toolActionForTextHit
-};

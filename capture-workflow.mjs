@@ -59,9 +59,3 @@ export async function consumeCapture(storage, search) {
   await storage.remove(key);
   return record;
 }
-
-globalThis.SnippyCaptureWorkflow = {
-  captureStorageKey,
-  consumeCapture,
-  storeCaptureAndOpenEditor
-};

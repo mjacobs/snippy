@@ -138,9 +138,41 @@ the Snippy card to reload.
 | `manifest.json` | MV3 manifest |
 | `background.js` | Service worker: capture + inject + open editor |
 | `content.js` / `content.css` | On-page selection overlay |
-| `editor.html` / `editor.js` / `editor.css` | The annotation editor |
+| `editor.html` / `editor.css` | The annotation editor's markup and styling |
+| `editor.js` | Editor entry point: pointer and keyboard handling, module wiring |
 | `fonts/` | Self-hosted Inter + Outfit (no remote font requests) |
 | `icons/` | Toolbar/store icons |
+
+`editor.js` is loaded as `<script type="module">` and is the page's only entry
+point; everything else it needs it imports.
+
+| Module | Role |
+|--------|------|
+| `editor-state.mjs` | The shared, sealed state object and its constants |
+| `editor-canvas.mjs` | Rendering, text measurement, coordinate conversion |
+| `editor-panel.mjs` | Tool grid, property controls, My Colors |
+| `editor-text.mjs` | The in-place text editing layer |
+| `editor-history.mjs` | Undo / Redo / Clear |
+| `editor-export.mjs` | Copy to clipboard, save JPEG, save + copy path |
+| `editor-ai-lens.mjs` | AI Lens panel (Gemini AI Studio / Vertex AI) |
+| `editor-toast.mjs` / `editor-sidebar.mjs` | Status messages; sidebar resize |
+| `editor-shapes.mjs` | Hit-testing, bounding boxes, reshape handles (pure) |
+| `editor-geometry.mjs` | Text wrapping and box sizing (pure) |
+| `editor-behavior.mjs` | Tool/interaction predicates, plus a couple of DOM/storage helpers (dependency-injected, easy to test) |
+| `editor-metadata.mjs` | Source-URL sanitizing, JPEG XMP / PNG iTXt (pure) |
+| `ai-lens-api.mjs` | Gemini request/response shaping (pure) |
+| `capture-workflow.mjs` | Handing a capture from the worker to the editor via injected storage/tabs (dependency-injected, easy to test) |
+
+### Checks
+
+```bash
+./check.sh    # syntax check every file, then run the unit tests
+./build.sh    # package dist/snippy-v<version>.zip
+```
+
+`check.sh` cannot exercise the canvas or `chrome.*`, so run
+[`docs/editor-smoke-test.md`](docs/editor-smoke-test.md) by hand after editor
+changes.
 
 ## License
 
