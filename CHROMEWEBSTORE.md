@@ -48,13 +48,19 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready | icons/icon-128.png |
-| Screenshot 1 | 1280×800 or 640×400 | ⬜ Not created | |
-| Screenshot 2 | 1280×800 or 640×400 | ⬜ Not created | |
-| Small Promo Tile | 440×280 | ⬜ Not created | |
+| Screenshot 1 | 1280×800 | ✅ Ready | store-assets/screenshot-1.png |
+| Screenshot 2 | 1280×800 | ✅ Ready | store-assets/screenshot-2.png |
+| Small Promo Tile | 440×280 | ✅ Ready | store-assets/promo-tile-small.png |
 
 ### Screenshot Notes
-- **Screenshot 1:** Show active selection on a popular site with the semi-transparent black overlay and white-dashed crop border, with the instruction pill showing at the top center.
-- **Screenshot 2:** Show the glassmorphic Snippy Editor containing an annotated crop with neon lines, text, arrows, and redactive blur in active use.
+- **Screenshot 1:** Active selection with the semi-transparent black overlay, white-dashed crop border, live `1028 × 353 px` size badge, and the instruction pill at top center.
+- **Screenshot 2:** The glassmorphic Snippy Editor holding an annotated crop — red arrow, red text caption, red rectangle, and a pixelated blur redacting an API key — with the Color / My Colors / Line Weight panel showing.
+
+Both screenshots are genuine renders of the shipping 1.1.2 extension, captured by loading the
+unpacked extension into Chromium at a 1280×800 viewport and driving the real capture and editor
+flows. The page being captured is a purpose-built fictional analytics dashboard ("Meridian"), so
+the listing carries no third-party branding and no personal data. The API key in the shot is a
+made-up string, present so the blur tool has something to redact.
 
 ## Permissions Justification
 
