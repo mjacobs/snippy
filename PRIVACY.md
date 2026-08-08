@@ -86,15 +86,22 @@ all.**
   your AI Lens key locally.
 - **clipboardWrite** — copy the annotated image or a saved file's path when
   you ask for it.
-- **downloads** — save JPEGs (Download, Save + Path, Quick Snip fallback) to
-  your own Downloads folder.
+- **downloads** — save JPEGs to your own Downloads folder for Save + Path and
+  the Quick Snip fallback, look up the saved file's path, and clean up expired
+  Snippy-created temp files. (The plain Download button uses a regular browser
+  download without this API.)
 - **offscreen** — copy the saved file's path to your clipboard in an
   extension-owned page, so the path is never exposed to the web page.
 - **nativeMessaging** — talk to the optional local temp-file helper, only if
   you installed it (see above).
 
-Snippy requests no host permissions and cannot read pages you don't explicitly
-capture.
+Snippy requests one host permission, `https://*.googleapis.com/*`, used
+exclusively by the optional AI Lens to send your screenshot directly to
+Google's Gemini API or your own Vertex AI endpoint with your own key, only
+when you click an AI action. It does not cover unrelated websites, and Snippy
+uses it only to make those AI API requests — it cannot read pages you don't
+explicitly capture, and if you never configure AI Lens it makes no network
+requests at all.
 
 ## Contact
 

@@ -3,6 +3,26 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
+## 1.1.3 — 2026-08-08
+
+First Chrome Web Store submission. No new user-facing features.
+
+### Changed
+
+- **Editor internals modularized.** `editor.js` (2954 lines) is now a thin
+  bootstrap over 14 focused ES modules (state, canvas, panel, text, history,
+  export, AI Lens, and friends). No intended behavior change; verified by an
+  in-browser smoke test of every tool and 63 unit tests (up from 60).
+- Store listing and README now lead with Snippy being fully open source and
+  ad-free rather than its looks; new listing screenshots, promo tile, and
+  redrawn toolbar/store icons in the brand gradient.
+
+### Fixed
+
+- Sidebar width is restored on editor load even if the resize handle is
+  missing, and review-driven hardening landed in the build's module allowlist
+  scanner and test suite.
+
 ## 1.1.2 — 2026-08-07
 
 ### Fixed
