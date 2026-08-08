@@ -2,7 +2,8 @@
 
 # Snippy
 
-**A fast, beautiful screenshot & annotation tool for Chrome.**
+**A fast, fully open-source screenshot & annotation tool for Chrome.
+Snippy has no ads, no accounts, no paid tiers.**
 
 Select any region of a page, mark it up with arrows, shapes, text, highlights,
 and blurs, then copy it or save it as a JPEG — all in a clean, glassmorphic
@@ -24,6 +25,7 @@ own Google Gemini key.
 - **Quick Snip for terminal agents** — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> on Mac) and drag: the region is saved to a temp file and its absolute path lands on your clipboard, ready to paste into Claude Code or any CLI. No editor tab; temp files become eligible for cleanup after ~24 hours and are removed at a later quick snip or browser startup. With the optional [native helper](#silent-saves-optional-native-helper) files go to a per-user temp dir; otherwise to `Downloads/snippy.tmp/`.
 - **AI Lens (optional)** — bring your own Google Gemini or Vertex AI key to read text (OCR), explain a screenshot, translate it, or turn a table into Markdown. See [AI Lens](#ai-lens-optional).
 - **Private by default** — nothing leaves your device unless you explicitly use AI Lens. See [PRIVACY.md](PRIVACY.md).
+- **Free & open source** — MIT-licensed and non-commercial: no ads, no accounts, no paid tiers. The whole extension is this repo.
 
 ## Install (unpacked)
 

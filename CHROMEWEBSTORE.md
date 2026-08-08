@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Snippy
 
-> Last Updated: 2026-08-06
+> Last Updated: 2026-08-08
 
 ## Store Listing
 
@@ -8,15 +8,16 @@
 Snippy
 
 **Short Description**
-A beautiful, fast, and easy screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.
+A fast, open-source, ad-free screenshot tool. Select any area, edit with arrows, shapes, text, or blurs, and save as JPEG.
 
 **Detailed Description**
-Snippy is a lightweight and blazing fast tool for capturing, annotating, and saving screenshots directly within your browser. With single-click activation and fluid UI, Snippy streamlines your visual workflow.
+Snippy is a lightweight, blazing fast tool for capturing, annotating, and saving screenshots directly within your browser. It is fully open source and completely non-commercial: no ads, no accounts, no paid tiers, and no data collection — just a screenshot tool.
 
 Key Features:
+- Free & Open Source: MIT-licensed with the complete source on GitHub (github.com/mjacobs/snippy). No ads, no upsells, nothing to buy.
 - Instant Activation: Click the extension icon or press Ctrl+Shift+S (Cmd+Shift+S on Mac) to start selecting.
 - Smooth Selection: The live viewport freezes in time, letting you drag and select any custom area precisely with real-time dimensions feedback.
-- Modern Editing Canvas: The captured selection instantly opens in an elegant, glassmorphic editing tab.
+- Modern Editing Canvas: The captured selection instantly opens in a clean, glassmorphic editing tab.
 - Comprehensive Annotation Set: Mark up your crops with freehand pens, custom-thickness rectangles, high-contrast text layers, and directional arrows.
 - Dynamic Highlighting & Blurring: Apply neon yellow highlighters to accent elements, or instantly pixelate/blur sensitive credentials and private data.
 - AI-Powered Lens (Optional): Connect a personal Google Gemini API key to unlock state-of-the-art vision capabilities—including accurate text extraction (OCR), detailed code explanations, contextual translation, tabular data extraction, and freeform chat about your captures.
@@ -38,7 +39,7 @@ The optional AI Lens is the single exception, and only when you choose to use it
 Productivity
 
 **Single Purpose**
-Enables users to quickly select custom browser regions, annotate them on an elegant workspace, and export as JPEG.
+Enables users to quickly select custom browser regions, annotate them in the built-in editor, and export as JPEG.
 
 **Primary Language**
 English
