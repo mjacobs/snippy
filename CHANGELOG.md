@@ -3,6 +3,22 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
+## 1.1.2 — 2026-08-07
+
+### Fixed
+
+- **Concurrent captures no longer overwrite each other.** Each capture is now
+  stored as its own namespaced record (`snippyCapture:<id>`) and the editor
+  opens with `?capture=<id>`, instead of every capture sharing one storage
+  slot. Stale records and the old shared-cache keys are pruned automatically.
+- Editor polish: text wrapping preserves leading indentation, and textarea
+  resizing and highlighter stroke behavior were corrected. The capture
+  workflow and editor behavior helpers gained unit tests (`tests/`).
+
+### Changed
+
+- The background service worker is now an ES module.
+
 ## 1.1.1 — 2026-08-06
 
 ### Added
