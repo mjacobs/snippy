@@ -3,9 +3,23 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
+## 1.1.4 — 2026-08-08
+
+The Chrome Web Store submission build (replaces the withdrawn 1.1.3
+submission). No functional changes.
+
+### Fixed
+
+- PRIVACY.md now discloses the `https://*.googleapis.com/*` host permission
+  (used only by the optional AI Lens) instead of claiming Snippy requests no
+  host permissions, and describes the `downloads` permission accurately
+  (Save + Path, Quick Snip fallback, and temp-file cleanup — the plain
+  Download button doesn't use it).
+
 ## 1.1.3 — 2026-08-08
 
-First Chrome Web Store submission. No new user-facing features.
+Prepared for Chrome Web Store submission (superseded by 1.1.4 before
+publishing). No new user-facing features.
 
 ### Changed
 

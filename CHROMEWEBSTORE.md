@@ -84,7 +84,8 @@ annotate them in the built-in editor, and export as JPEG.
   red arrow, red text caption, red rectangle, and a pixelated blur redacting an
   API key — with the Color / My Colors / Line Weight panel showing.
 
-Both screenshots are genuine renders of the shipping 1.1.3 extension, captured
+Both screenshots are genuine renders of the shipping extension (v1.1.2; the
+editor is visually unchanged since), captured
 by loading the unpacked extension into Chromium at a 1280×800 viewport and
 driving the real capture and editor flows. The page being captured is a
 purpose-built fictional analytics dashboard ("Meridian"), so the listing carries
@@ -163,7 +164,8 @@ listing and in `PRIVACY.md`.
 
 | Version | Date       | Changes                                                                                                                                                                                                                                      | Status |
 | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 1.1.3   | 2026-08-08 | First store submission. Editor internals modularized (no behavior change), open-source/ad-free messaging, new listing assets and icons, minor sidebar fix. See CHANGELOG.md.                                                                 | Draft  |
+| 1.1.4   | 2026-08-08 | Store submission build: corrected PRIVACY.md permission disclosures (googleapis host permission, downloads scope). No functional changes. See CHANGELOG.md.                                                                                   | Submitted |
+| 1.1.3   | 2026-08-08 | Editor internals modularized (no behavior change), open-source/ad-free messaging, new listing assets and icons, minor sidebar fix. Submission withdrawn before review; superseded by 1.1.4. See CHANGELOG.md.                                | Withdrawn |
 | 1.1.2   | 2026-08-07 | Bug fixes: per-capture storage records so concurrent captures don't overwrite each other, text-wrap/textarea/highlighter corrections, module service worker. See CHANGELOG.md.                                                               | Draft  |
 | 1.1.1   | 2026-08-06 | Resize selected text boxes to control line wrapping, with live reflow, Undo/Redo, and width preservation across editing and font-size changes. See CHANGELOG.md.                                                                             | Draft  |
 | 1.1.0   | 2026-08-06 | Shape editing (restyle + reshape handles), inline text editing from any tool, My Colors saved palette, redo, full-viewport capture shortcut, new fonts, opt-in text shadow (off by default), Quick Snip concurrency fixes. See CHANGELOG.md. | Draft  |
