@@ -1,6 +1,9 @@
 // Getting the annotated image out of the editor: copy to the clipboard as
 // PNG, download as JPEG, and download-then-copy-the-path for pasting straight
 // into a terminal. Source-URL provenance is stamped on the way out.
+//
+// Returns the two pieces other export-shaped features reuse (see
+// editor-memex.mjs): the selection-suppressing wrapper and a PNG builder.
 
 import {
   bytesToBase64,
@@ -68,6 +71,21 @@ export function createExport({ canvas, state, drawEverything, showToast, commitA
       }
     }, 'image/png'));
   });
+
+  // Base64 PNG of the annotated canvas, source-URL stamped like every other
+  // export. Callers wrap this in withSelectionSuppressed().
+  function buildExportPngBase64() {
+    const pngUrl = canvas.toDataURL('image/png');
+    const bytes = dataUrlToBytes(pngUrl);
+    if (!state.sourceUrl) return bytesToBase64(bytes);
+    try {
+      return bytesToBase64(embedSourceInPng(bytes, state.sourceUrl));
+    } catch (err) {
+      // Fail open: provenance metadata must never block the export itself.
+      console.error('PNG metadata embed failed, exporting without it:', err);
+      return bytesToBase64(bytes);
+    }
+  }
 
   // Composite the annotated canvas over a solid white backdrop and return a
   // JPEG data URL. Callers wrap this in withSelectionSuppressed().
@@ -254,4 +272,6 @@ export function createExport({ canvas, state, drawEverything, showToast, commitA
       }
     );
   });
+
+  return { buildExportPngBase64, withSelectionSuppressed };
 }
