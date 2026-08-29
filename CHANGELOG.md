@@ -3,7 +3,10 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
-## Unreleased
+## 1.1.5 — 2026-08-29
+
+Adds an optional one-click push of the finished screenshot to a self-hosted
+Memex instance.
 
 ### Added
 
