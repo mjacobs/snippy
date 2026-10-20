@@ -3,13 +3,19 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
-## Unreleased
+## 1.1.6 — 2026-10-20
 
 ### Added
 
 - **Numbered callouts.** Choose Number and click to place red circles labelled
   1, 2, 3… for referencing parts of a screenshot in text. Markers can be moved,
   recolored and deleted, support undo and redo, and appear in exported images.
+  Labels stay centered in their circles, including double-digit numbers.
+
+### Changed
+
+- **Compact tools panel.** Tools now appear in a single column with shorter
+  rows, less padding, and a narrower sidebar to leave more room for the image.
 
 ## 1.1.4 — 2026-08-08
 

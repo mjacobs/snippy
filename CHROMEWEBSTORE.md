@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — Snippy
 
-> Last Updated: 2026-08-08
+> Last Updated: 2026-10-20
 
 ## Store Listing
 
@@ -27,6 +27,11 @@ Key Features:
 - Comprehensive Annotation Set: Mark up your crops with freehand pens,
   custom-thickness rectangles, high-contrast text layers, and directional
   arrows.
+- Numbered Callouts: Click to place red circles numbered 1, 2, 3… so you can
+  refer to parts of a screenshot in accompanying text. Move, recolor, or delete
+  markers, with undo and redo support. Labels stay centered in the circles.
+- Compact Tools Panel: A narrow, single-column toolbar leaves more room for
+  your screenshot.
 - Dynamic Highlighting & Blurring: Apply neon yellow highlighters to accent
   elements, or instantly pixelate/blur sensitive credentials and private data.
 - AI-Powered Lens (Optional): Connect a personal Google Gemini API key to unlock
@@ -177,6 +182,7 @@ listing and in `PRIVACY.md`.
 
 | Version | Date       | Changes                                                                                                                                                                                                                                      | Status |
 | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1.1.6   | 2026-10-20 | Numbered callouts with centered labels, move/recolor/delete, undo/redo, and export support; a compact single-column toolbar with a narrower sidebar. See CHANGELOG.md. | Draft |
 | 1.1.4   | 2026-08-08 | Store submission build: corrected PRIVACY.md permission disclosures (googleapis host permission, downloads scope). No functional changes. See CHANGELOG.md.                                                                                   | Submitted |
 | 1.1.3   | 2026-08-08 | Editor internals modularized (no behavior change), open-source/ad-free messaging, new listing assets and icons, minor sidebar fix. Submission withdrawn before review; superseded by 1.1.4. See CHANGELOG.md.                                | Withdrawn |
 | 1.1.2   | 2026-08-07 | Bug fixes: per-capture storage records so concurrent captures don't overwrite each other, text-wrap/textarea/highlighter corrections, module service worker. See CHANGELOG.md.                                                               | Draft  |
