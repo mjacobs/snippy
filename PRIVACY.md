@@ -1,25 +1,30 @@
 # Snippy — Privacy Policy
 
-_Last updated: 2026-08-28_
+_Last updated: 2026-10-20_
 
 Snippy is a browser screenshot and annotation tool. This policy explains exactly
 what happens to your data. The short version: **your screenshots stay on your
-own device, and the only times anything is sent off-device are when you
-personally click an AI Lens action or Push to Memex.**
+own device, and the only time anything is sent off-device is when you personally
+click an AI Lens action.**
 
 ## What Snippy stores, and where
 
-Everything Snippy keeps is stored locally in your browser via
-`chrome.storage.local`. None of it is transmitted to the developer or to any
-Snippy-operated server — there is no Snippy server.
+Captures and settings use your browser's local storage. Annotations exist in
+the open editor tab. None of this data is transmitted to the developer or to
+any Snippy-operated server — there is no Snippy server.
 
 | Data | Where it lives | Sent anywhere? |
 |------|----------------|----------------|
-| The screenshot you capture | Passed in local storage from the capture page to the editor tab | No (except AI Lens and Push to Memex — see below) |
-| Your annotations (arrows, text, blurs, etc.) | Rendered in the editor tab only | No — except that AI Lens and Push to Memex send the annotated image, not the original |
+| The screenshot you capture | Passed in local storage from the capture page to the editor tab | No (except AI Lens — see below) |
+| The captured page's URL | Passed with the capture to the editor, then embedded as metadata in images you copy or download | Not sent to AI Lens; included in your exported files |
+| Your annotations (arrows, text, blurs, etc.) | Rendered in the editor tab only | Included in the image when you use AI Lens |
 | Editor preferences (e.g. sidebar width) | `chrome.storage.local` | No |
-| Your AI Lens API key & settings | `chrome.storage.local` | No — never leaves your browser |
-| Your Memex URL & device key | `chrome.storage.local` | Only to your own Memex — the key authenticates each push you trigger |
+| Your AI Lens API key & settings | `chrome.storage.local` | The key authenticates requests to Google only when you use AI Lens |
+
+The editor deletes a capture record after reading it. A record left behind
+by an editor that never opened is removed at the next capture once it is more
+than five minutes old; there is no background cleanup timer. Annotations
+disappear when the editor tab closes unless you exported the image.
 
 Uninstalling Snippy removes this local data.
 
@@ -69,32 +74,8 @@ Your use of Google's APIs is governed by Google's terms and privacy policy:
 - <https://ai.google.dev/gemini-api/terms> (AI Studio)
 - <https://cloud.google.com/terms> (Vertex AI)
 
-## The other exception: Push to Memex
-
-Push to Memex is **optional** and does nothing until you enter the URL of a
-[Memex](https://github.com/mjacobs/memex) instance you run yourself and its
-device key.
-
-When — and only when — you click **Push to Memex**, the current image in the
-editor is sent **directly from your browser** to that URL, along with the source
-page's URL if the capture has one. It goes nowhere else: there is no Snippy
-server in the path.
-
-Your device key is stored locally and sent to that one endpoint only, in the
-`Authorization` header of a push you triggered, to prove the push is yours. It
-goes to no one else and it is never shown back to you after you save it.
-
-Because the key travels with every push, the URL must be **https**. Snippy
-refuses a plain-`http` Memex URL unless it is `localhost` or `127.0.0.1`, where
-nothing crosses the network.
-
-Snippy asks for permission to reach that host at the moment you save the
-setting, and Chrome will show you the prompt. Clearing the setting or pointing
-it at a different host hands the old host's permission back to Chrome, and you
-can revoke it yourself at any time in Chrome's extension settings.
-
-If you configure neither AI Lens nor Push to Memex, Snippy makes **no external
-network requests at all.**
+If you never configure AI Lens, Snippy makes **no external network requests at
+all.**
 
 ## What Snippy does NOT do
 
@@ -107,8 +88,8 @@ network requests at all.**
 - **activeTab** — capture the pixels of the current tab, only when you invoke
   Snippy.
 - **scripting** — inject the selection overlay into the current page.
-- **storage** — hold the captured image, preferences, and (if you set them up)
-  your AI Lens key and Memex credentials locally.
+- **storage** — hold the captured image, preferences, and (if you set one up)
+  your AI Lens key locally.
 - **clipboardWrite** — copy the annotated image or a saved file's path when
   you ask for it.
 - **downloads** — save JPEGs to your own Downloads folder for Save + Path and
@@ -125,19 +106,8 @@ exclusively by the optional AI Lens to send your screenshot directly to
 Google's Gemini API or your own Vertex AI endpoint with your own key, only
 when you click an AI action. It does not cover unrelated websites, and Snippy
 uses it only to make those AI API requests — it cannot read pages you don't
-explicitly capture. If you configure neither AI Lens nor Push to Memex, Snippy
-makes no network requests at all.
-
-Push to Memex needs to reach whatever host you run Memex on, which can't be
-known in advance, so that permission is **optional**: Snippy requests it for
-that one origin when you save the setting, and releases it when you clear the
-setting or point it at a different host. The manifest declares that the
-optional permission may be asked for `https://*/*` plus `http://localhost/*`
-and `http://127.0.0.1/*`, but Chrome only ever grants what you approve in the
-prompt: the one host you entered. Chrome's permissions have no per-port
-granularity, so approving `https://memex.example.com:8443` covers every port
-on `memex.example.com` over https — no other host. You can revoke it at any
-time in Chrome's extension settings.
+explicitly capture, and if you never configure AI Lens it makes no network
+requests at all.
 
 ## Contact
 

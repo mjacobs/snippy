@@ -36,9 +36,7 @@ FILES=(
   editor-export.mjs
   editor-geometry.mjs
   editor-history.mjs
-  editor-memex.mjs
   editor-metadata.mjs
-  memex-api.mjs
   editor-panel.mjs
   editor-shapes.mjs
   editor-sidebar.mjs

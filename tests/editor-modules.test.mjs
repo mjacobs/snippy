@@ -185,12 +185,6 @@ function installDom() {
       }
     },
     downloads: { download() {}, search() {}, onChanged: { addListener() {}, removeListener() {} } },
-    permissions: {
-      revoked: [],
-      async contains() { return true; },
-      async request() { return true; },
-      async remove({ origins }) { this.revoked.push(...origins); return true; }
-    },
     runtime: { sendMessage() {}, lastError: null }
   };
   return { registry, doc };
@@ -203,7 +197,6 @@ const { createHistory } = await import('../editor-history.mjs');
 const { createTextEditor } = await import('../editor-text.mjs');
 const { createExport } = await import('../editor-export.mjs');
 const { createAiLens } = await import('../editor-ai-lens.mjs');
-const { createMemexPush } = await import('../editor-memex.mjs');
 const { createPropertyPanel } = await import('../editor-panel.mjs');
 const { createToast, createTextEditHint } = await import('../editor-toast.mjs');
 const { initSidebarResize } = await import('../editor-sidebar.mjs');
@@ -468,94 +461,6 @@ test('the AI Lens panel wires up and its controls run', async () => {
   assert.equal(document.getElementById('ai-prompt-input').fire('keydown', { key: 'a' }), 1);
 });
 
-test('Push to Memex stays disabled until it is configured, then posts', async () => {
-  const { state } = freshEditor();
-  state.sourceUrl = 'https://example.com/pricing';
-  const requests = [];
-  const loadedScreenshot = { complete: true, naturalWidth: 800, naturalHeight: 600 };
-  // What `new Image()` looks like before its src decodes: truthy, no pixels.
-  const loadingScreenshot = { complete: false, naturalWidth: 0, naturalHeight: 0 };
-  globalThis.fetch = async (url, init) => {
-    requests.push({ url, init });
-    return { ok: true, status: 202, async json() { return { id: 'cap1' }; } };
-  };
-  const toasts = [];
-
-  createMemexPush({
-    state,
-    showToast: (m) => toasts.push(m),
-    commitActiveText: () => {},
-    buildExportPngBase64: () => 'QUFB',
-    withSelectionSuppressed: (fn) => fn()
-  });
-  await new Promise(r => setImmediate(r)); // let the stored config load
-
-  const btn = document.getElementById('btn-memex');
-  assert.equal(btn.disabled, true, 'disabled with no endpoint or key');
-
-  // A save with a bad URL is rejected without storing anything.
-  document.getElementById('memex-endpoint-input').value = 'not a url';
-  document.getElementById('memex-key-input').value = 'dev-key';
-  document.getElementById('btn-memex-save').fire('click');
-  await new Promise(r => setImmediate(r));
-  assert.equal(btn.disabled, true);
-
-  // So is a remote plain-HTTP host — the device key would ride in the clear.
-  document.getElementById('memex-endpoint-input').value = 'http://memex.example.com';
-  document.getElementById('btn-memex-save').fire('click');
-  await new Promise(r => setImmediate(r));
-  assert.equal(btn.disabled, true);
-
-  // Query strings and credentials are dropped before anything is stored.
-  document.getElementById('memex-endpoint-input').value = 'https://u:p@memex.example.com/?t=1';
-  document.getElementById('memex-key-input').value = 'dev-key';
-  document.getElementById('btn-memex-save').fire('click');
-  await new Promise(r => setImmediate(r));
-  assert.equal(btn.disabled, false, 'enabled once endpoint and key are stored');
-  assert.equal(
-    document.getElementById('memex-endpoint-input').value,
-    'https://memex.example.com',
-    'the normalized endpoint is what gets stored and shown'
-  );
-  // The secret is never echoed back into the field.
-  assert.equal(document.getElementById('memex-key-input').value, '');
-
-  // Configured, but the screenshot has not arrived yet: an empty canvas still
-  // serializes to valid PNG bytes, so nothing may be sent.
-  for (const notReady of [null, loadingScreenshot]) {
-    state.bgImage = notReady;
-    btn.fire('click');
-    await new Promise(r => setImmediate(r));
-    await new Promise(r => setImmediate(r));
-    assert.equal(requests.length, 0, 'no blank capture is pushed');
-  }
-
-  state.bgImage = loadedScreenshot;
-  btn.fire('click');
-  await new Promise(r => setImmediate(r));
-  await new Promise(r => setImmediate(r));
-
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://memex.example.com/api/v1/capture/image');
-  assert.equal(requests[0].init.headers.Authorization, 'Bearer dev-key');
-  const body = JSON.parse(requests[0].init.body);
-  assert.equal(body.image_base64, 'QUFB');
-  assert.equal(body.source_url, 'https://example.com/pricing');
-  assert.ok(toasts.includes('Pushed to Memex'));
-
-  chrome.permissions.revoked.length = 0;
-  document.getElementById('btn-memex-clear').fire('click');
-  await new Promise(r => setImmediate(r));
-  await new Promise(r => setImmediate(r));
-  assert.equal(btn.disabled, true, 'disabled again after clearing');
-  assert.deepEqual(
-    chrome.permissions.revoked,
-    ['https://memex.example.com/*'],
-    'clearing hands the host permission back to Chrome'
-  );
-  delete globalThis.fetch;
-});
-
 // The editor's entry point is not run here — it needs a whole live page. What
 // can be checked cheaply is the wiring that breaks silently: a module the
 // entry point imports that does not exist, does not export the name asked
@@ -592,94 +497,7 @@ test('every module editor.js imports resolves and ships in the build', async () 
     assert.ok(listed.test(buildScript), `build.sh should package ${file}`);
     queue.push(...importsIn(read(file)));
   }
-  assert.ok(seen.has('memex-api.mjs'), 'the walk reaches modules only imported indirectly');
-});
-
-test('a stored endpoint we no longer accept still offers a way out', async () => {
-  const { state } = freshEditor();
-  // What an older build could have stored: cleartext HTTP, remote host.
-  chrome.storage.local.set({
-    memexEndpoint: 'http://memex.example.com/?t=1',
-    memexDeviceKey: 'legacy-key'
-  });
-
-  createMemexPush({
-    state,
-    showToast: () => {},
-    commitActiveText: () => {},
-    buildExportPngBase64: () => 'QUFB',
-    withSelectionSuppressed: (fn) => fn()
-  });
-  await new Promise(r => setImmediate(r));
-  await new Promise(r => setImmediate(r));
-
-  assert.equal(document.getElementById('btn-memex').disabled, true, 'pushes stay off');
-  assert.equal(
-    document.getElementById('btn-memex-clear').classList.contains('hidden'),
-    false,
-    'Clear stays offered, so the stored device key can be removed from the panel'
-  );
-  assert.match(document.getElementById('memex-status-text').textContent, /no longer usable/);
-  // Only the origin survives, on screen and on disk: the query string an
-  // older build kept is not shown back or left in storage.
-  assert.equal(
-    document.getElementById('memex-endpoint-input').value,
-    'http://memex.example.com'
-  );
-  assert.deepEqual(
-    await chrome.storage.local.get(['memexEndpoint']),
-    { memexEndpoint: 'http://memex.example.com' }
-  );
-
-  // Clearing it must still release the host, even though we would no longer
-  // push to it — the grant is real whatever we think of the URL now.
-  chrome.permissions.revoked.length = 0;
-  document.getElementById('btn-memex-clear').fire('click');
-  await new Promise(r => setImmediate(r));
-  await new Promise(r => setImmediate(r));
-  assert.ok(
-    chrome.permissions.revoked.includes('http://memex.example.com/*'),
-    'the legacy origin is handed back to Chrome'
-  );
-  assert.deepEqual(await chrome.storage.local.get(['memexDeviceKey']), {});
-});
-
-test('the export PNG builder returns raw base64 and restores the selection', () => {
-  const { state, canvas } = freshEditor();
-  // A 1x1 transparent PNG, so embedSourceInPng has a real chunk stream to walk.
-  const pngBase64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk' +
-    'YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-  canvas.toDataURL = () => `data:image/png;base64,${pngBase64}`;
-  state.sourceUrl = 'https://example.com/pricing';
-  state.selectedShape = { type: 'rect' };
-
-  // Record what the selection was at each redraw: the canvas is only correct
-  // if it is repainted once without the outline and again with it back.
-  const redraws = [];
-  const { buildExportPngBase64, withSelectionSuppressed } = createExport({
-    canvas,
-    state,
-    drawEverything: () => redraws.push(state.selectedShape),
-    showToast: () => {},
-    commitActiveText: () => {}
-  });
-
-  let out = '';
-  let selectionDuringExport = 'unset';
-  withSelectionSuppressed(() => {
-    selectionDuringExport = state.selectedShape;
-    out = buildExportPngBase64();
-  });
-
-  assert.equal(selectionDuringExport, null, 'the selection outline is off while snapshotting');
-  assert.deepEqual(state.selectedShape, { type: 'rect' }, 'and restored afterwards');
-  assert.deepEqual(redraws, [null, { type: 'rect' }], 'redrawn without, then with, the outline');
-  assert.ok(!out.startsWith('data:'), 'raw base64, not a data URL');
-  assert.ok(/^[A-Za-z0-9+/]+=*$/.test(out), 'base64 characters only');
-  // The source URL is stamped in, so the bytes differ from the bare PNG.
-  assert.notEqual(out, pngBase64);
-  assert.ok(Buffer.from(out, 'base64').includes('https://example.com/pricing'));
+  assert.ok(seen.has('ai-lens-api.mjs'), 'the walk reaches modules only imported indirectly');
 });
 
 test('the property panel wires up and its controls restyle the selection', () => {

@@ -24,8 +24,7 @@ own Google Gemini key.
 - **Export** — copy the annotated result straight to your clipboard, or download a high-quality JPEG (white-matted so nothing goes transparent).
 - **Quick Snip for terminal agents** — press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> on Mac) and drag: the region is saved to a temp file and its absolute path lands on your clipboard, ready to paste into Claude Code or any CLI. No editor tab; temp files become eligible for cleanup after ~24 hours and are removed at a later quick snip or browser startup. With the optional [native helper](#silent-saves-optional-native-helper) files go to a per-user temp dir; otherwise to `Downloads/snippy.tmp/`.
 - **AI Lens (optional)** — bring your own Google Gemini or Vertex AI key to read text (OCR), explain a screenshot, translate it, or turn a table into Markdown. See [AI Lens](#ai-lens-optional).
-- **Push to Memex (optional)** — one click sends the annotated screenshot to a Memex instance you run yourself, where it becomes a capture and is enriched into a note. See [Push to Memex](#push-to-memex-optional).
-- **Private by default** — nothing leaves your device unless you explicitly use AI Lens or Push to Memex. See [PRIVACY.md](PRIVACY.md).
+- **Private by default** — nothing leaves your device unless you explicitly use AI Lens. See [PRIVACY.md](PRIVACY.md).
 - **Free & open source** — MIT-licensed and non-commercial: no ads, no accounts, no paid tiers. The whole extension is this repo.
 
 ## Install (unpacked)
@@ -110,36 +109,15 @@ your images.
    a custom question. The current image is sent to Google and the answer appears
    in the panel.
 
-The model defaults to `gemini-2.5-flash` and is editable. Your key stays in
+The model defaults to `gemini-2.5-flash` and is editable. Your key is stored in
 `chrome.storage.local`; **Reset Key** clears it.
-
-## Push to Memex (optional)
-
-[Memex](https://github.com/mjacobs/memex) is a personal capture service you run
-yourself. With it configured, the **Push to Memex** button in the editor header
-sends the annotated screenshot straight there, where it becomes a capture and
-gets enriched into a note — "capture the thing I'm looking at".
-
-1. In the editor, open the **AI Lens** tool and scroll to **Push to Memex**.
-2. Enter your Memex URL (e.g. `https://memex.example.com`) and a device key,
-   then **Save Memex Settings**. Chrome will ask for permission to reach that
-   host; the button stays disabled until both are set. The URL must be
-   `https://`, since the device key rides along on every push — `http://` is
-   accepted only for `localhost` or `127.0.0.1`.
-3. Click **Push to Memex** in the header. The annotated PNG is posted to
-   `/api/v1/capture/image` with your device key, along with the source page's
-   URL when the capture has one.
-
-The URL and key stay in `chrome.storage.local`; **Clear** forgets them and
-hands the host permission back to Chrome.
 
 ## Privacy
 
-Captures, annotations, your AI key, and your Memex credentials are stored only
-in your browser (`chrome.storage.local`). Anything leaves your device only when
-you click an AI Lens action (browser → Google → browser with your own key) or
-Push to Memex (browser → your own Memex). Full details in
-[PRIVACY.md](PRIVACY.md).
+Captures and settings use your browser's local storage; annotations exist only
+in the open editor tab. When you click an AI Lens action, the annotated image
+and your authentication key go directly to Google. Exported images also include
+the captured page's URL as metadata. Full details in [PRIVACY.md](PRIVACY.md).
 
 ## Permissions
 
@@ -147,16 +125,10 @@ Push to Memex (browser → your own Memex). Full details in
 |------------|-----|
 | `activeTab` | Capture the current tab's pixels, only when you invoke Snippy. |
 | `scripting` | Inject the selection overlay into the page. |
-| `storage` | Hold the captured image, preferences, and (optionally) your AI key and Memex credentials locally. |
+| `storage` | Hold the captured image, preferences, and (optionally) your AI key locally. |
 
-One host permission is requested up front, `https://*.googleapis.com/*`, used
-only by AI Lens. Push to Memex needs whatever host you run Memex on, which
-can't be known in advance, so that one is optional: Snippy asks for that one
-host when you save the setting, and gives it back when you clear or repoint it.
-Chrome's permissions carry no port, so the grant covers every port on that host
-under that scheme — and no other host. The full permission list, including
-the ones the store build declares for Quick Snip and Save + Path, is in
-[PRIVACY.md](PRIVACY.md).
+The host permission `https://*.googleapis.com/*` is used only by the optional
+AI Lens. See [PRIVACY.md](PRIVACY.md) for the full permission list.
 
 ## Development
 
@@ -192,8 +164,6 @@ point; everything else it needs it imports.
 | `editor-behavior.mjs` | Tool/interaction predicates, plus a couple of DOM/storage helpers (dependency-injected, easy to test) |
 | `editor-metadata.mjs` | Source-URL sanitizing, JPEG XMP / PNG iTXt (pure) |
 | `ai-lens-api.mjs` | Gemini request/response shaping (pure) |
-| `editor-memex.mjs` | Push to Memex: settings, host permission, the push itself |
-| `memex-api.mjs` | Memex endpoint normalizing and request shaping (pure) |
 | `capture-workflow.mjs` | Handing a capture from the worker to the editor via injected storage/tabs (dependency-injected, easy to test) |
 
 ### Checks

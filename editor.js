@@ -6,7 +6,6 @@ import { createAiLens } from './editor-ai-lens.mjs';
 import { createRenderer } from './editor-canvas.mjs';
 import { createExport } from './editor-export.mjs';
 import { createHistory } from './editor-history.mjs';
-import { createMemexPush } from './editor-memex.mjs';
 import { createPropertyPanel } from './editor-panel.mjs';
 import { createTextEditor } from './editor-text.mjs';
 import { initSidebarResize } from './editor-sidebar.mjs';
@@ -536,25 +535,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Copy / Save / Save+Path live in editor-export.mjs. They need to redraw
   // without the selection outline before snapshotting the canvas, so they
   // take drawEverything.
-  const { buildExportPngBase64, withSelectionSuppressed } = createExport({
-    canvas, state, drawEverything, showToast, commitActiveText
-  });
+  createExport({ canvas, state, drawEverything, showToast, commitActiveText });
 
   // AI Lens side panel (Gemini AI Studio / Vertex AI). It owns its own
   // elements and credentials; all it needs from here is the canvas to
   // photograph and a way to close any open text edit first.
   createAiLens({ canvas, state, showToast, commitActiveText });
-
-  // Push to Memex. Same shape as an export — it reuses the export module's
-  // PNG builder so the pushed image is byte-for-byte what a save would give,
-  // provenance metadata included.
-  createMemexPush({
-    state,
-    showToast,
-    commitActiveText,
-    buildExportPngBase64,
-    withSelectionSuppressed
-  });
 
   // ==========================================
   // Keyboard Shortcuts

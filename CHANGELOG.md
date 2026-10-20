@@ -3,23 +3,6 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
-## 1.1.5 — 2026-08-29
-
-Adds an optional one-click push of the finished screenshot to a self-hosted
-Memex instance.
-
-### Added
-
-- **Push to Memex.** A header button sends the annotated screenshot to a Memex
-  instance you run yourself, where it becomes a capture and is enriched into a
-  note. Set the Memex URL and device key in the AI Lens panel; until you do,
-  the button is disabled. The push goes browser → your Memex with no Snippy
-  server in the path, and Snippy asks for permission to reach that one host
-  when you save the setting — and hands it back when you clear the setting or
-  point it at a different host. Because the device key travels with every push,
-  the URL must be `https://`; `http://` is taken only for `localhost` and
-  `127.0.0.1`.
-
 ## 1.1.4 — 2026-08-08
 
 The Chrome Web Store submission build (replaces the withdrawn 1.1.3

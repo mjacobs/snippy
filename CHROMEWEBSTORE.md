@@ -47,17 +47,18 @@ How to Use Snippy:
    JPEG" to save the file locally.
 
 Privacy & Permissions: Snippy's capture and editing run entirely on your device.
-Your screenshots and annotations live only in your browser's private extension
-storage (chrome.storage.local) and are never sent to Snippy's developer or any
-Snippy server.
+Captures and settings use your browser's private extension storage
+(chrome.storage.local); annotations exist only in the open editor tab.
+They are never sent to Snippy's developer or any Snippy server.
 
 The optional AI Lens is the single exception, and only when you choose to use
 it: the moment you click an AI action (Read Text, Explain, Translate, Format, or
 a custom prompt), the current image is sent directly from your browser to
 Google's Gemini API — or to your own Google Cloud Vertex AI endpoint — using the
 API key you supply, so Google can analyze it. Snippy never proxies this through
-its own servers, and your API key never leaves your local browser storage. If
-you never configure AI Lens, Snippy makes no external network requests at all.
+its own servers. Your key is stored locally and sent to Google to authenticate
+only the AI requests you choose to make. If you never configure AI Lens, Snippy
+makes no external network requests at all.
 
 **Category** Productivity
 
@@ -115,8 +116,19 @@ Use), not remote code execution.
 ### Data Collection
 
 **Does the developer collect user data?** No — Snippy's developer receives and
-stores nothing. Captures, annotations, and API keys stay in the user's local
-`chrome.storage.local`.
+stores nothing. Where each kind of data lives:
+
+- **Captures** contain screenshot pixels and the captured page's URL. They
+  pass through `chrome.storage.local` to the editor, which deletes the record
+  after reading it. An unread record is removed at the next capture once it
+  is more than five minutes old; there is no background cleanup timer.
+- **Annotations** exist only in the open editor tab. They are included in
+  exported images and in the image sent when the user invokes AI Lens.
+- **The source URL** stays in the editor and is embedded as metadata in
+  images the user copies or downloads. It is not sent to AI Lens.
+- **AI Lens credentials and preferences** are stored in
+  `chrome.storage.local`. The credential is sent to Google only to
+  authenticate an AI request initiated by the user.
 
 **Does the extension transmit user data to a third party?** Yes, conditionally.
 When the user invokes the optional **AI Lens**, the current screenshot is sent
@@ -125,11 +137,12 @@ AI endpoint), using the user's own API key. This is disclosed to the user in the
 listing and in `PRIVACY.md`.
 
 > **Store "Data Use" form guidance:** On the Chrome Web Store data-disclosure
-> form, declare that the extension handles **"Website content"** (the screenshot
-> image), that it is **transmitted** (to Google's AI API) only for the AI Lens
-> feature at the user's request, and that it is **not** collected by the
-> developer. Do not certify "does not transmit user data" — that would be
-> inaccurate while AI Lens ships.
+> form, disclose **"Website content"** (the annotated screenshot) and
+> **"Authentication information"** (the AI Lens credential). Both are sent
+> directly to Google's API only when the user invokes AI Lens, and neither is
+> collected by the developer. The source URL is kept locally and in exported
+> image metadata; it is not part of the AI request. Do not certify "does not
+> transmit user data" while AI Lens ships.
 
 ### Data Use Certification
 
@@ -138,9 +151,9 @@ listing and in `PRIVACY.md`.
       single purpose
 - [x] Data is NOT used or transferred to determine creditworthiness or for
       lending purposes
-- [x] The only third-party transmission is the AI Lens screenshot → Google,
-      performed on-device with the user's own key, at the user's explicit
-      request
+- [x] The only third-party transmission is the AI Lens screenshot and
+      authentication credential → Google, sent directly by the browser at
+      the user's explicit request
 
 ## Privacy Policy
 
@@ -164,7 +177,6 @@ listing and in `PRIVACY.md`.
 
 | Version | Date       | Changes                                                                                                                                                                                                                                      | Status |
 | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 1.1.5   | 2026-08-29 | Push to Memex: an optional header button that sends the annotated screenshot to a Memex instance you host yourself, with per-host permission requested only when you save the setting. See CHANGELOG.md.                                    | Draft  |
 | 1.1.4   | 2026-08-08 | Store submission build: corrected PRIVACY.md permission disclosures (googleapis host permission, downloads scope). No functional changes. See CHANGELOG.md.                                                                                   | Submitted |
 | 1.1.3   | 2026-08-08 | Editor internals modularized (no behavior change), open-source/ad-free messaging, new listing assets and icons, minor sidebar fix. Submission withdrawn before review; superseded by 1.1.4. See CHANGELOG.md.                                | Withdrawn |
 | 1.1.2   | 2026-08-07 | Bug fixes: per-capture storage records so concurrent captures don't overwrite each other, text-wrap/textarea/highlighter corrections, module service worker. See CHANGELOG.md.                                                               | Draft  |
