@@ -104,9 +104,9 @@ made-up string, present so the blur tool has something to redact.
 | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `activeTab` | permissions | Required to capture the visible viewport pixels of the current active webpage upon user action. Grants secure temporary host permission without broad invasive scanning. |
 | `scripting` | permissions | Required to programmatically insert the crop overlay interface (CSS/JS) into the webpage viewport.                                                                       |
-| `storage`   | permissions | Required to pass the cropped screenshot data securely from the temporary page capture content script to the editor tab.                                                  |
+| `storage`   | permissions | Used to pass captures and their source URLs to the editor, and to store editor preferences and optional AI Lens credentials locally. Capture records are deleted after the editor reads them. No data is sent to the developer. |
 | `clipboardWrite` | permissions | Powers the user-initiated "Copy Image" action (writes the annotated screenshot to the clipboard) and Quick Snip's path handoff (copies the saved file's location for pasting into a terminal). Writes only on explicit user action; nothing is read from the clipboard. |
-| `downloads` | permissions | Powers the user-initiated Save + Path action (saves the JPEG, then looks up the completed download's path to copy it to the clipboard), the fallback save path for Quick Snip captures (Downloads/snippy.tmp), and cleanup of expired Snippy-created temp files in that folder. The plain "Download JPEG" button uses a standard anchor download without this API. Only files Snippy itself created are ever touched. |
+| `downloads` | permissions | Used for Save + Path, Quick Snip's fallback saves in Downloads/snippy.tmp, looking up completed download paths for clipboard copying, and cleaning up expired Snippy-created temporary files. The plain Download JPEG button uses a standard browser download without this API. |
 | `nativeMessaging` | permissions | Used only by the optional Quick Snip helper: if the user installed the local companion (from the GitHub repo), captures are handed to it for silent saves to a per-user temp directory. Without it, the extension falls back to the downloads API. No other native communication. |
 | `offscreen` | permissions | An offscreen document (CLIPBOARD reason) lets the service worker write the saved screenshot's file path to the clipboard without routing it through page content scripts, so page scripts never see local filesystem paths. It performs no other work. |
 | `https://*.googleapis.com/*` | host_permissions | Used exclusively by the optional, user-configured AI Lens: screenshots go directly to Google's Gemini API (generativelanguage.googleapis.com) or the user's own Vertex AI endpoint (region-specific `*-aiplatform` hosts — hence the wildcard) with the user's own API key. If AI Lens is never configured, the extension makes no network requests at all. |
@@ -141,24 +141,36 @@ from the user's browser directly to Google (Gemini API or the user's own Vertex
 AI endpoint), using the user's own API key. This is disclosed to the user in the
 listing and in `PRIVACY.md`.
 
-> **Store "Data Use" form guidance:** On the Chrome Web Store data-disclosure
-> form, disclose **"Website content"** (the annotated screenshot) and
-> **"Authentication information"** (the AI Lens credential). Both are sent
-> directly to Google's API only when the user invokes AI Lens, and neither is
-> collected by the developer. The source URL is kept locally and in exported
-> image metadata; it is not part of the AI request. Do not certify "does not
-> transmit user data" while AI Lens ships.
+**Store "Data Use" form guidance:** Check these three data-type boxes:
+
+- **Website content** — screenshot pixels and annotations. The annotated
+  image is sent directly to Google only when the user invokes AI Lens.
+- **Authentication information** — the user's AI Lens API key or access token,
+  stored locally and sent to Google to authenticate user-initiated AI requests.
+- **Web history** — the captured page's URL, kept locally and embedded in
+  exported image metadata. It is not sent as part of the AI request.
+
+These disclosures cover data handled by the extension even though the
+developer receives none of it. Google requires disclosure of
+[local-only data handling](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq)
+too. Do not certify "does not transmit user data" while AI Lens ships.
+
+Keep **remote code = No**, the three form certification boxes checked, and
+the existing privacy-policy URL below. Numbered callouts and the compact
+toolbar add no new permissions or data transmission.
 
 ### Data Use Certification
 
-- [x] Data is NOT sold to third parties
-- [x] Data is NOT used or transferred for purposes unrelated to the extension's
-      single purpose
-- [x] Data is NOT used or transferred to determine creditworthiness or for
-      lending purposes
-- [x] The only third-party transmission is the AI Lens screenshot and
-      authentication credential → Google, sent directly by the browser at
-      the user's explicit request
+- [x] I do not sell or transfer user data to third parties, outside of the
+      approved use cases.
+- [x] I do not use or transfer user data for purposes that are unrelated to my
+      item's single purpose.
+- [x] I do not use or transfer user data to determine creditworthiness or for
+      lending purposes.
+
+The only third-party transmission is the AI Lens screenshot and authentication
+credential → Google, sent directly by the browser at the user's explicit
+request.
 
 ## Privacy Policy
 
