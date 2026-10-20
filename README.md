@@ -18,6 +18,7 @@ own Google Gemini key.
 
 - **Instant capture** — click the toolbar icon or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> on Mac), then drag to select. The viewport freezes so you can select precisely, with a live pixel-dimension readout. Press <kbd>Enter</kbd> instead of dragging to capture the whole visible page, or skip the overlay entirely with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> on Mac) for a one-click capture of the visible viewport (not the full scroll height) straight to the editor.
 - **Full annotation set** — freehand pen, arrows, rectangles (outline or filled), neon highlighter, text (optional drop shadow, several typefaces), and a **pixelate/blur** tool for redacting sensitive info.
+- **Numbered callouts** — choose **Number** and click to place red circles labelled 1, 2, 3… for referencing parts of a screenshot in text. Move or recolor them with Select. Existing labels stay unchanged when you delete a marker; the next click uses one more than the highest remaining number. Undoing the last placement lets you reuse its number, and clearing all markers restarts at 1.
 - **Edit in place** — select any annotation to move it; restyle supported types from the properties panel (color/width/fill/font — blur regions have nothing to restyle) or reshape with drag handles (arrow endpoints, shape corners, and text-box width); narrowing text reflows it onto additional lines; double-click text to edit it.
 - **My Colors** — save up to six of your own colors (e.g. brand palette); they persist across sessions.
 - **Undo & redo** — undo the last edit (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>), redo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Y</kbd>), or clear everything and restore it with one undo.
@@ -160,6 +161,7 @@ point; everything else it needs it imports.
 | `editor-ai-lens.mjs` | AI Lens panel (Gemini AI Studio / Vertex AI) |
 | `editor-toast.mjs` / `editor-sidebar.mjs` | Status messages; sidebar resize |
 | `editor-shapes.mjs` | Hit-testing, bounding boxes, reshape handles (pure) |
+| `editor-number.mjs` | Numbered marker creation, circle sizing, contrasting label colors (pure) |
 | `editor-geometry.mjs` | Text wrapping and box sizing (pure) |
 | `editor-behavior.mjs` | Tool/interaction predicates, plus a couple of DOM/storage helpers (dependency-injected, easy to test) |
 | `editor-metadata.mjs` | Source-URL sanitizing, JPEG XMP / PNG iTXt (pure) |

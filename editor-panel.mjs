@@ -128,6 +128,9 @@ export function createPropertyPanel({
       propStroke.classList.add('hidden');
       propFont.classList.remove('hidden');
     }
+    else if (state.activeTool === 'number') {
+      propStroke.classList.add('hidden');
+    }
     else if (state.activeTool === 'ai-lens') {
       propColor.classList.add('hidden');
       propStroke.classList.add('hidden');
@@ -142,6 +145,9 @@ export function createPropertyPanel({
       state.activeTextarea.element.style.color = color;
       state.activeTextarea.color = color; // Commit must honor mid-edit changes
       if (!state.activeTextarea.source) state.activeColor = color;
+    } else if (state.activeTool === 'number' ||
+               (state.activeTool === 'select' && state.selectedShape?.type === 'number')) {
+      state.activeNumberColor = color;
     } else {
       state.activeColor = color;
     }
@@ -320,7 +326,7 @@ export function createPropertyPanel({
                  state.shapes.includes(state.selectedShape) &&
                  styleAppliesTo(state.selectedShape, 'color'))
       ? state.selectedShape : null;
-    return sel ? sel.color : state.activeColor;
+    return sel ? sel.color : (state.activeTool === 'number' ? state.activeNumberColor : state.activeColor);
   }
 
   // Saves the color the panel is currently DISPLAYING into the next free
@@ -638,7 +644,7 @@ export function createPropertyPanel({
     const sel = (state.selectedShape && state.shapes.includes(state.selectedShape)) ? state.selectedShape : null;
 
     if (!sel) {
-      syncColorControls(state.activeColor);
+      syncColorControls(state.activeTool === 'number' ? state.activeNumberColor : state.activeColor);
       const panelWidth = state.activeTool === 'highlighter'
         ? Math.round(state.activeHighlighterLineWidth / 3)
         : state.activeLineWidth;

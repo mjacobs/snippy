@@ -51,8 +51,9 @@ export function createEditorState() {
     redoStack: [],
 
     // --- Settings applied to the NEXT shape drawn ---
-    activeTool: 'select', // select, pen, arrow, rect, highlighter, blur, text
+    activeTool: 'select', // select, pen, arrow, rect, ellipse, highlighter, blur, text, number
     activeColor: '#ff3b30', // Red default
+    activeNumberColor: '#ff3b30', // Keep markers red even after using another tool's color
     activeLineWidth: 3, // Thin
     activeHighlighterLineWidth: 18, // Legacy default; panel Medium (6) × 3
     activeFontSize: 24, // Medium

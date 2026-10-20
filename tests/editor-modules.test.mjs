@@ -103,7 +103,13 @@ function makeContext() {
     closePath: noop, stroke: noop, fill: noop, arc: noop, ellipse: noop,
     strokeRect: noop, fillRect: noop, clearRect: noop, fillText: noop,
     drawImage: noop, setLineDash: noop,
-    measureText: (t) => ({ width: String(t).length * 10 })
+    measureText: (t) => ({
+      width: String(t).length * 10,
+      actualBoundingBoxLeft: String(t).length * 5,
+      actualBoundingBoxRight: String(t).length * 5,
+      actualBoundingBoxAscent: 7,
+      actualBoundingBoxDescent: 7
+    })
   };
 }
 
@@ -111,7 +117,7 @@ function makeContext() {
 // each carries. Returning real nodes here means the panel actually registers
 // its click handlers, so the tests can fire them.
 const GROUPS = {
-  '.tool-btn': [{ tool: 'pen' }, { tool: 'select' }],
+  '.tool-btn': [{ tool: 'pen' }, { tool: 'select' }, { tool: 'number' }, { tool: 'text' }],
   '.color-swatch': [{ color: '#00ff00' }, { color: '#0000ff' }],
   '.stroke-btn': [{ width: '3' }, { width: '6' }],
   '.font-size-btn': [{ size: '16' }, { size: '48' }],
@@ -142,11 +148,11 @@ function installDom() {
     return selectors.get(selector);
   };
   const doc = {
+    ...makeEventTarget(),
     getElementById: get,
     querySelector,
     querySelectorAll: getAll,
     createElement: (tag) => makeElement(tag),
-    addEventListener: () => {},
     body: makeElement('body'),
     fonts: { ready: Promise.resolve() },
     activeElement: null
@@ -168,7 +174,7 @@ function installDom() {
   // Node defines navigator as a getter-only global, so redefine it.
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
-    value: { clipboard: { writeText: async () => {}, write: async () => {} } }
+    value: { platform: 'Linux', clipboard: { writeText: async () => {}, write: async () => {} } }
   });
   const store = new Map();
   globalThis.chrome = {
@@ -244,6 +250,38 @@ test('the renderer draws every shape type without a live canvas', () => {
     renderer.drawEverything();
     renderer.getShapeBBox(shape);
     renderer.hitTestShape(shape, 5, 5);
+  }
+});
+
+test('number labels center their visible ink instead of the font box', () => {
+  const { ctx, renderer } = freshEditor();
+  const cases = [
+    { label: '1', left: 3, right: 5, ascent: 9, descent: 5 },
+    { label: '5', left: 6, right: 4, ascent: 5, descent: 8 },
+    { label: '10', left: 11, right: 9, ascent: 8, descent: 4 }
+  ];
+  for (const { label, left, right, ascent, descent } of cases) {
+    ctx.measureText = text => {
+      assert.equal(text, label);
+      assert.equal(ctx.textAlign, 'center');
+      assert.equal(ctx.textBaseline, 'middle');
+      assert.match(ctx.font, /bold 18px/);
+      return {
+        width: 24,
+        actualBoundingBoxLeft: left, actualBoundingBoxRight: right,
+        actualBoundingBoxAscent: ascent, actualBoundingBoxDescent: descent
+      };
+    };
+    let drawn = false;
+    ctx.fillText = (text, x, y, maxWidth) => {
+      drawn = true;
+      assert.equal(text, label);
+      assert.equal(100 - (x - left), (x + right) - 100, 'equal space on either side of the ink');
+      assert.equal(50 - (y - ascent), (y + descent) - 50, 'equal space above and below the ink');
+      assert.equal(maxWidth, undefined, 'draw at the measured width without squeezing the digits');
+    };
+    renderer.drawShape({ type: 'number', number: Number(label), color: '#ff3b30', x1: 100, y1: 50 });
+    assert.equal(drawn, true);
   }
 });
 
@@ -461,9 +499,8 @@ test('the AI Lens panel wires up and its controls run', async () => {
   assert.equal(document.getElementById('ai-prompt-input').fire('keydown', { key: 'a' }), 1);
 });
 
-// The editor's entry point is not run here — it needs a whole live page. What
-// can be checked cheaply is the wiring that breaks silently: a module the
-// entry point imports that does not exist, does not export the name asked
+// Check the import wiring separately from the entry-point interaction test:
+// a module the entry point imports that does not exist, does not export the name asked
 // for, or was never added to the packaged file list. That last one is the
 // real trap — the extension loads fine unpacked and is blank once built.
 test('every module editor.js imports resolves and ships in the build', async () => {
@@ -716,4 +753,120 @@ test('the sidebar still restores its saved width when the resize handle is missi
   } finally {
     document.getElementById = originalGetElementById;
   }
+});
+
+test('Number tool clicks, selection, history and export run through the real editor entry point', async () => {
+  installDom();
+  const canvas = document.getElementById('editor-canvas');
+  const ctx = makeContext();
+  let labels = [];
+  let outlines = 0;
+  ctx.clearRect = () => { labels = []; outlines = 0; };
+  ctx.fillText = (label, x, y) => labels.push({ label, x, y, color: ctx.fillStyle });
+  ctx.strokeRect = () => { outlines++; };
+  canvas.getContext = () => ctx;
+  globalThis.location = { search: '?capture=number-test' };
+  globalThis.Image = class {
+    naturalWidth = 800;
+    naturalHeight = 600;
+    set src(value) { this.onload(); }
+  };
+  await chrome.storage.local.set({ 'snippyCapture:number-test': { dataUrl: 'test', sourceUrl: '' } });
+  await import('../editor.js');
+  await document.listeners.get('DOMContentLoaded')[0]();
+  const tool = name => __groups('.tool-btn').find(b => b.dataset.tool === name).click();
+  const click = (x, y, detail = 1) => {
+    canvas.fire('mousedown', { button: 0, clientX: x, clientY: y, detail });
+    window.fire('mouseup', { clientX: x, clientY: y });
+  };
+  const button = id => document.getElementById(`btn-${id}`).click();
+  const numbers = () => labels.map(l => l.label);
+
+  // Another tool's color must not change the new marker's default red.
+  tool('pen');
+  __groups('.color-swatch')[1].click();
+  tool('number');
+  assert.equal(document.getElementById('custom-color-picker').value, '#ff3b30');
+  assert.equal(document.getElementById('prop-stroke').classList.contains('hidden'), true);
+  click(50, 50);
+  click(100, 50);
+  click(150, 50);
+  assert.deepEqual(numbers(), ['1', '2', '3']);
+  assert.deepEqual([labels[0].x, labels[0].y], [100, 100], 'placement uses backing coordinates');
+  canvas.fire('mousedown', { button: 2, clientX: 200, clientY: 50, detail: 1 });
+  assert.deepEqual(numbers(), ['1', '2', '3'], 'right-click does not place a marker');
+
+  button('undo');
+  assert.deepEqual(numbers(), ['1', '2']);
+  button('redo');
+  assert.deepEqual(numbers(), ['1', '2', '3']);
+  button('undo');
+  click(150, 50);
+  assert.deepEqual(numbers(), ['1', '2', '3'], 'new placement reuses the undone number');
+  assert.equal(document.getElementById('btn-redo').disabled, true);
+
+  tool('select');
+  canvas.fire('mousedown', { button: 0, clientX: 100, clientY: 50, detail: 1 });
+  window.fire('mousemove', { clientX: 110, clientY: 60 });
+  window.fire('mouseup', { clientX: 110, clientY: 60 });
+  assert.deepEqual([labels[1].x, labels[1].y], [220, 120]);
+  button('undo');
+  assert.deepEqual([labels[1].x, labels[1].y], [200, 100]);
+  button('redo');
+  assert.deepEqual([labels[1].x, labels[1].y], [220, 120]);
+  __groups('.color-swatch')[1].click();
+  assert.equal(labels[1].color, '#ffffff', 'a blue circle has a white label');
+  button('undo');
+  assert.equal(labels[1].color, '#000000', 'undo restores red with a black label');
+  button('redo');
+  assert.equal(labels[1].color, '#ffffff');
+
+  assert.equal(outlines, 1);
+  let exportedLabels;
+  canvas.toBlob = callback => {
+    exportedLabels = numbers();
+    assert.equal(outlines, 0, 'selection outline is absent while taking the export snapshot');
+    callback(null);
+  };
+  button('copy');
+  assert.deepEqual(exportedLabels, ['1', '2', '3']);
+  assert.equal(outlines, 1, 'selection is restored after export');
+
+  window.fire('keydown', { key: 'Delete' });
+  assert.deepEqual(numbers(), ['1', '3']);
+  button('undo');
+  assert.deepEqual(numbers(), ['1', '2', '3']);
+  button('redo');
+  tool('number');
+  click(200, 50);
+  assert.deepEqual(numbers(), ['1', '3', '4']);
+  button('clear');
+  click(50, 50);
+  assert.deepEqual(numbers(), ['1']);
+  button('undo');
+  button('undo');
+  assert.deepEqual(numbers(), ['1', '3', '4']);
+  for (let i = 5; i <= 12; i++) click(20 * i, 100);
+  assert.equal(labels.at(-1).label, '12');
+
+  // Double-clicking text with Number active removes the first-click marker
+  // and preserves the existing redo trail, without consuming a number.
+  button('clear');
+  tool('text');
+  click(50, 50);
+  const textarea = document.getElementById('canvas-wrapper').children.at(-1);
+  textarea.value = 'Look here';
+  tool('number'); // Commits the text.
+  click(150, 50);
+  button('undo');
+  assert.deepEqual(numbers(), ['Look here']);
+  click(51, 51, 1);
+  click(51, 51, 2);
+  canvas.fire('dblclick', { clientX: 51, clientY: 51 });
+  assert.deepEqual(numbers(), []);
+  document.getElementById('canvas-wrapper').children.at(-1).fire('keydown', { key: 'Escape' });
+  assert.deepEqual(numbers(), ['Look here']);
+  assert.equal(document.getElementById('btn-redo').disabled, false);
+  click(200, 50);
+  assert.deepEqual(numbers(), ['Look here', '1']);
 });

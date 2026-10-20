@@ -31,7 +31,24 @@ where you drew it and survives a redraw (switch tools and back).
 - [ ] **Ellipse** — same, hollow and filled
 - [ ] **Blur** — pixelates the region underneath
 - [ ] **Text** — click, type, press Enter. Text lands where you clicked
-- [ ] A click without a drag leaves nothing behind (too small to count)
+- [ ] **Number** — click three places: red circles labelled 1, 2, 3 appear
+      centered on the clicks. Switching tools and back continues at 4.
+- [ ] A click without a drag leaves nothing behind for drag-to-draw tools
+
+## Numbered markers
+
+- [ ] Select a marker, move it, recolor it, delete it; undo and redo each edit
+- [ ] Undo a placement and place again: it reuses the undone number
+- [ ] Delete the middle marker: other labels stay unchanged; the next marker
+      follows the highest remaining number
+- [ ] Clear and place a marker: it starts at 1; undo the placement and the clear
+      to restore the original markers and resume their sequence
+- [ ] Place markers 1–10: the visible digits are centered both horizontally
+      and vertically in each circle, including the two-digit label
+- [ ] Double-click existing text with Number active: text opens for editing
+      with no stray marker and no skipped number on the next placement
+- [ ] Select a marker and export: the circle and number survive in the image,
+      without the selection outline
 
 ## Text
 

@@ -6,6 +6,7 @@ import { createAiLens } from './editor-ai-lens.mjs';
 import { createRenderer } from './editor-canvas.mjs';
 import { createExport } from './editor-export.mjs';
 import { createHistory } from './editor-history.mjs';
+import { createNumberMarker } from './editor-number.mjs';
 import { createPropertyPanel } from './editor-panel.mjs';
 import { createTextEditor } from './editor-text.mjs';
 import { initSidebarResize } from './editor-sidebar.mjs';
@@ -262,6 +263,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       // that createTextarea focuses.
       e.preventDefault();
       createTextarea(e.clientX, e.clientY, coords.x, coords.y);
+      return;
+    }
+
+    if (state.activeTool === 'number') {
+      const marker = createNumberMarker(state.shapes, coords.x, coords.y, state.activeNumberColor);
+      state.shapes.push(marker);
+      state.undoStack.push({ type: 'add', shape: marker });
+      // A double-click on existing text still opens the text editor and
+      // removes the marker from its first click, just like other tools.
+      if (state.doubleClickCandidate) state.doubleClickCandidate.artifact = marker;
+      clearRedoStack();
+      updateUndoButton();
+      drawEverything();
       return;
     }
 

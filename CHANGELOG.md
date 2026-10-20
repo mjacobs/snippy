@@ -3,6 +3,14 @@
 Notable changes to Snippy. Versions follow `major.minor.patch`; the version in
 `manifest.json` is the source of truth.
 
+## Unreleased
+
+### Added
+
+- **Numbered callouts.** Choose Number and click to place red circles labelled
+  1, 2, 3… for referencing parts of a screenshot in text. Markers can be moved,
+  recolored and deleted, support undo and redo, and appear in exported images.
+
 ## 1.1.4 — 2026-08-08
 
 The Chrome Web Store submission build (replaces the withdrawn 1.1.3

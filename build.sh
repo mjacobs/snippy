@@ -37,6 +37,7 @@ FILES=(
   editor-geometry.mjs
   editor-history.mjs
   editor-metadata.mjs
+  editor-number.mjs
   editor-panel.mjs
   editor-shapes.mjs
   editor-sidebar.mjs

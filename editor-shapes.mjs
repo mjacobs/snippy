@@ -4,6 +4,7 @@
 // {lines, inkWidth, boxWidth, height}.
 
 import { resizedTextBoxWidth, textBoxResizeHandle } from './editor-geometry.mjs';
+import { numberMarkerRadius } from './editor-number.mjs';
 
 // Shortest distance from point (px,py) to segment (ax,ay)-(bx,by), backing coords
 export function distToSegment(px, py, ax, ay, bx, by) {
@@ -19,6 +20,13 @@ export function distToSegment(px, py, ax, ay, bx, by) {
 
 // Normalized bounding box {x1,y1,x2,y2} for any shape (backing coords)
 export function getShapeBBox(shape, getTextLayout) {
+  if (shape.type === 'number') {
+    const radius = numberMarkerRadius(shape);
+    return {
+      x1: shape.x1 - radius, y1: shape.y1 - radius,
+      x2: shape.x1 + radius, y2: shape.y1 + radius
+    };
+  }
   if (shape.type === 'text') {
     const layout = getTextLayout(shape);
     return {
@@ -64,6 +72,9 @@ export function getSelectionBBox(shape, getTextLayout) {
 // True if the point (backing coords) hits the shape
 export function hitTestShape(shape, x, y, getTextLayout) {
   const tol = 6;
+  if (shape.type === 'number') {
+    return Math.hypot(x - shape.x1, y - shape.y1) <= numberMarkerRadius(shape) + tol;
+  }
   if (shape.type === 'arrow') {
     const w = shape.lineWidth || 3;
     return distToSegment(x, y, shape.x1, shape.y1, shape.x2, shape.y2) <= w / 2 + tol;
@@ -119,7 +130,7 @@ export function translateShape(shape, dx, dy) {
 
 // Reshape handles for a shape, in draw order: endpoints for arrows/lines,
 // corners for the box-shaped types. Text has one width handle, while
-// pen/highlighter strokes are move-only and return none.
+// pen/highlighter strokes and numbered markers are move-only and return none.
 export function getHandles(shape, getTextLayout) {
   if (shape.type === 'text') {
     const layout = getTextLayout(shape);
@@ -189,7 +200,7 @@ export function styleAppliesTo(shape, key) {
     return shape.type !== 'blur';
   }
   if (key === 'lineWidth') {
-    return shape.type !== 'blur' && shape.type !== 'text';
+    return shape.type !== 'blur' && shape.type !== 'text' && shape.type !== 'number';
   }
   if (key === 'isFilled' || key === 'fillColor') {
     return shape.type === 'rect' || shape.type === 'ellipse';

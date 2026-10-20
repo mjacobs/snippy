@@ -15,6 +15,7 @@ import {
   hitTestShape as shapeHitTest
 } from './editor-shapes.mjs';
 import { DEFAULT_FONT_FAMILY } from './editor-state.mjs';
+import { NUMBER_FONT_SIZE, numberLabelColor, numberMarkerRadius } from './editor-number.mjs';
 
 export function createRenderer({ canvas, ctx, state, imgDimensions }) {
   // Set up Canvas dimensions
@@ -238,6 +239,31 @@ export function createRenderer({ canvas, ctx, state, imgDimensions }) {
         ctx.strokeRect(bx, by, bw, bh);
       }
     } 
+    else if (shape.type === 'number') {
+      const radius = numberMarkerRadius(shape);
+      ctx.fillStyle = shape.color;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.arc(shape.x1, shape.y1, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = numberLabelColor(shape.color);
+      ctx.font = `bold ${NUMBER_FONT_SIZE}px ${DEFAULT_FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = String(shape.number);
+      const metrics = ctx.measureText(label);
+      // Canvas center/middle aligns the advance width and font box. Center
+      // the visible digits instead, including their unequal side bearings.
+      const x = shape.x1 + (metrics.actualBoundingBoxLeft - metrics.actualBoundingBoxRight) / 2;
+      const y = shape.y1 + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2;
+      ctx.fillText(label, x, y);
+    }
     else if (shape.type === 'text') {
       const family = shape.fontFamily || DEFAULT_FONT_FAMILY;
       ctx.fillStyle = shape.color;
