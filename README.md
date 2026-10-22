@@ -28,9 +28,14 @@ own Google Gemini key.
 - **Private by default** — nothing leaves your device unless you explicitly use AI Lens. See [PRIVACY.md](PRIVACY.md).
 - **Free & open source** — MIT-licensed and non-commercial: no ads, no accounts, no paid tiers. The whole extension is this repo.
 
-## Install (unpacked)
+## Install
 
-Snippy isn't on the Chrome Web Store yet. To install it directly:
+Install Snippy from the [Chrome Web Store](https://chromewebstore.google.com/detail/snippy/ngoibedmbnkobjbabboodhlijfffoaca) by clicking **Add to Chrome**.
+Click the puzzle-piece icon in Chrome's toolbar and **pin** Snippy for easy access.
+
+### Unpacked installation (development)
+
+To install an unpacked copy for development:
 
 1. **Download and unzip** the latest `snippy-v<version>.zip` release. You'll get a folder named `snippy`.
 2. Open Chrome and go to **`chrome://extensions`**.
